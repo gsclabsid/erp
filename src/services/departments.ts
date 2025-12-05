@@ -1,4 +1,4 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { api } from "@/lib/api";
 
 export type Department = {
   id: string;
@@ -36,13 +36,9 @@ function writeLocal(list: Department[]) {
 }
 
 export async function listDepartments(): Promise<Department[]> {
-  if (!hasSupabaseEnv) return readLocal();
   try {
-    const { data, error } = await supabase.from(table).select("*").order("name");
-    if (error) throw error;
-    const remote = (data || []) as Department[];
-    // Merge with local cache to bridge RLS-hidden rows or offline edits,
-    // and de-duplicate by normalized name (case-insensitive).
+    const departments = await api.get<Department[]>('/departments');
+    // Merge with local cache for offline support
     const local = readLocal();
     const byName = new Map<string, Department>();
     const add = (d?: Department) => {
@@ -51,7 +47,7 @@ export async function listDepartments(): Promise<Department[]> {
       if (!key) return;
       if (!byName.has(key)) byName.set(key, d);
     };
-    for (const d of remote) add(d);
+    for (const d of departments) add(d);
     for (const d of local) add(d);
     return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
   } catch {
@@ -67,26 +63,18 @@ export async function createDepartment(payload: { name: string; code?: string | 
     code: payload.code ?? null,
     is_active: payload.is_active ?? true,
   };
-  if (!hasSupabaseEnv) {
-    const list = readLocal();
-    const now = new Date().toISOString();
-    const created: Department = { ...record, created_at: now } as Department;
-    writeLocal([created, ...list]);
-    return created;
-  }
   try {
-    const { data, error } = await supabase.from(table).insert({ ...record, created_at: new Date().toISOString() }).select().single();
-    if (error) throw error;
-    // Mirror to local cache so UI can still read via fallback if SELECT is blocked by RLS
+    const created = await api.post<Department>('/departments', { ...record, created_at: new Date().toISOString() });
+    // Mirror to local cache
     try {
       const local = readLocal();
-      const exists = local.find(d => d.id === (data as any).id);
-      const merged = exists ? local.map(d => d.id === (data as any).id ? (data as Department) : d) : [data as Department, ...local];
+      const exists = local.find(d => d.id === created.id);
+      const merged = exists ? local.map(d => d.id === created.id ? created : d) : [created, ...local];
       writeLocal(merged);
     } catch {}
-    return data as Department;
+    return created;
   } catch {
-    // Fallback to local if Supabase fails
+    // Fallback to local if API fails
     const list = readLocal();
     const now = new Date().toISOString();
     const created: Department = { ...record, created_at: now } as Department;
@@ -96,26 +84,15 @@ export async function createDepartment(payload: { name: string; code?: string | 
 }
 
 export async function updateDepartment(id: string, patch: Partial<Pick<Department, "name" | "code" | "is_active">>): Promise<Department> {
-  if (!hasSupabaseEnv) {
-    const list = readLocal();
-    const idx = list.findIndex(d => d.id === id);
-    if (idx === -1) throw new Error("Not found");
-    const updated = { ...list[idx], ...patch } as Department;
-    const next = [...list];
-    next[idx] = updated;
-    writeLocal(next);
-    return updated;
-  }
   try {
-    const { data, error } = await supabase.from(table).update(patch).eq("id", id).select().single();
-    if (error) throw error;
+    const updated = await api.put<Department>(`/departments/${id}`, patch);
     // Mirror to local cache
     try {
       const local = readLocal();
       const idx = local.findIndex(d => d.id === id);
-      if (idx >= 0) { local[idx] = data as Department; writeLocal([...local]); }
+      if (idx >= 0) { local[idx] = updated; writeLocal([...local]); }
     } catch {}
-    return data as Department;
+    return updated;
   } catch {
     const list = readLocal();
     const idx = list.findIndex(d => d.id === id);
@@ -129,16 +106,10 @@ export async function updateDepartment(id: string, patch: Partial<Pick<Departmen
 }
 
 export async function deleteDepartment(id: string): Promise<void> {
-  if (!hasSupabaseEnv) {
-    const next = readLocal().filter(d => d.id !== id);
-    writeLocal(next);
-    return;
-  }
   try {
-    const { error } = await supabase.from(table).delete().eq("id", id);
-    if (error) throw error;
-  // Mirror local cache
-  try { const next = readLocal().filter(d => d.id !== id); writeLocal(next); } catch {}
+    await api.delete(`/departments/${id}`);
+    // Mirror local cache
+    try { const next = readLocal().filter(d => d.id !== id); writeLocal(next); } catch {}
   } catch {
     const next = readLocal().filter(d => d.id !== id);
     writeLocal(next);

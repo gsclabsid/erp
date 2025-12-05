@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: sams-postgres
+    environment:
+      POSTGRES_DB: sams
+      POSTGRES_USER: sams_user
+      POSTGRES_PASSWORD: sams_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sams_user -d sams"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Server
+  sams-api:
+    build:
+      context: .
+      target: development
+      dockerfile: Dockerfile
+    container_name: sams-api
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://sams_user:sams_password@postgres:5432/sams
+      - API_PORT=3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run dev:api
+    restart: unless-stopped
+
+  # Development server
+  sams-dev:
+    build:
+      context: .
+      target: development
+      dockerfile: Dockerfile
+    container_name: sams-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:3001
+    depends_on:
+      - sams-api
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # Production server (optional - uncomment to use)
+  # sams-prod:
+  #   build:
+  #     context: .
+  #     target: production
+  #     dockerfile: Dockerfile
+  #   container_name: sams-prod
+  #   ports:
+  #     - "80:80"
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+

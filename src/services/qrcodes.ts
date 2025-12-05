@@ -1,6 +1,6 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
+import { api } from "@/lib/api";
 
 export type QRCode = {
   id: string;
@@ -52,16 +52,11 @@ export async function listQRCodes(options?: { force?: boolean }): Promise<QRCode
       return arr;
     } catch { return []; }
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   return await getCachedValue(
     QR_CODES_CACHE_KEY,
     async () => {
-      const { data, error } = await supabase
-        .from(table)
-        .select("id, asset_id, property, generated_date, status, printed, image_url, created_at, assets(name)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []).map(toCamel);
+      const qrcodes = await api.get<QRCode[]>('/qr-codes');
+      return qrcodes.map(toCamel);
     },
     { ttlMs: QR_CODES_CACHE_TTL, force: options?.force }
   );
@@ -81,13 +76,10 @@ export async function createQRCode(qr: QRCode): Promise<QRCode> {
       return qr;
     }
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const payload = toSnake(qr);
-  const { data, error } = await supabase.from(table).insert(payload).select("id, asset_id, property, generated_date, status, printed, image_url, created_at").single();
-  if (error) throw error;
-  const created = toCamel(data);
+  const created = await api.post<QRCode>('/qr-codes', payload);
   invalidateCacheByPrefix(QR_CODES_CACHE_KEY);
-  return created;
+  return toCamel(created);
 }
 
 export async function updateQRCode(id: string, patch: Partial<QRCode>): Promise<QRCode> {
@@ -108,13 +100,10 @@ export async function updateQRCode(id: string, patch: Partial<QRCode>): Promise<
       throw e instanceof Error ? e : new Error("UPDATE_FAILED");
     }
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const payload = toSnake(patch);
-  const { data, error } = await supabase.from(table).update(payload).eq("id", id).select("id, asset_id, property, generated_date, status, printed, image_url, created_at").single();
-  if (error) throw error;
-  const updated = toCamel(data);
+  const updated = await api.put<QRCode>(`/qr-codes/${id}`, payload);
   invalidateCacheByPrefix(QR_CODES_CACHE_KEY);
-  return updated;
+  return toCamel(updated);
 }
 
 export async function deleteAllQRCodes(): Promise<void> {
@@ -123,8 +112,12 @@ export async function deleteAllQRCodes(): Promise<void> {
     invalidateCacheByPrefix(QR_CODES_CACHE_KEY);
     return;
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { error } = await supabase.from(table).delete().neq("id", "");
-  if (error) throw error;
+  // Delete all via API (or implement bulk delete endpoint)
+  try {
+    const qrcodes = await api.get<QRCode[]>('/qr-codes');
+    await Promise.all(qrcodes.map(qr => api.delete(`/qr-codes/${qr.id}`)));
+  } catch (error) {
+    console.warn('Failed to delete all QR codes', error);
+  }
   invalidateCacheByPrefix(QR_CODES_CACHE_KEY);
 }

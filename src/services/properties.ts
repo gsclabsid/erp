@@ -1,6 +1,6 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoProperties } from "@/lib/demo";
 import { getCachedValue, invalidateCache } from "@/lib/data-cache";
+import { api } from "@/lib/api";
 
 export type Property = {
   id: string;
@@ -43,16 +43,11 @@ function toSnake(p: Partial<Property>) {
 
 export async function listProperties(options?: { force?: boolean }): Promise<Property[]> {
   if (isDemoMode()) return getDemoProperties();
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   return getCachedValue(
     PROPERTY_CACHE_KEY,
     async () => {
-      const { data, error } = await supabase
-        .from(table)
-        .select("id,name,address,type,status,manager,created_at,updated_at")
-        .order("id");
-      if (error) throw error;
-      return (data ?? []).map(toCamel);
+      const properties = await api.get<Property[]>('/properties');
+      return properties.map(toCamel);
     },
     { ttlMs: PROPERTY_CACHE_TTL, force: options?.force },
   );
@@ -60,37 +55,22 @@ export async function listProperties(options?: { force?: boolean }): Promise<Pro
 
 export async function deleteProperty(id: string): Promise<void> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-
   // Delete related records first to avoid FK constraints
-  // 1. Audit Incharge
-  await supabase.from("audit_incharge").delete().eq("property_id", id);
-  
-  // 2. Audit Sessions (and their cascaded children like scans/reviews)
-  await supabase.from("audit_sessions").delete().eq("property_id", id);
-
-  // 3. Assets in this property
-  await supabase.from("assets").delete().eq("property_id", id);
-
-  const { error } = await supabase.from(table).delete().eq("id", id);
-  if (error) throw error;
+  // This should be handled by the API endpoint with CASCADE or explicit deletes
+  await api.delete(`/properties/${id}`);
   invalidateCache(PROPERTY_CACHE_KEY);
 }
 
 export async function createProperty(p: Property): Promise<Property> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).insert(toSnake(p)).select().single();
-  if (error) throw error;
+  const created = await api.post<Property>('/properties', toSnake(p));
   invalidateCache(PROPERTY_CACHE_KEY);
-  return toCamel(data);
+  return toCamel(created);
 }
 
 export async function updateProperty(id: string, patch: Partial<Property>): Promise<Property> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).update(toSnake(patch)).eq("id", id).select().single();
-  if (error) throw error;
+  const updated = await api.put<Property>(`/properties/${id}`, toSnake(patch));
   invalidateCache(PROPERTY_CACHE_KEY);
-  return toCamel(data);
+  return toCamel(updated);
 }

@@ -1,46 +1,33 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { api } from "@/lib/api";
 
 export type ItemType = { name: string; created_at?: string };
 
-const table = "asset_types";
-
 export async function listItemTypes(): Promise<ItemType[]> {
   const defaults = ["Furniture","Electronics","Vehicles","Machinery","Office Supplies","Other"]; 
-  if (!hasSupabaseEnv) {
-    return defaults.map((n) => ({ name: n }));
-  }
   try {
-    const { data, error } = await supabase.from(table).select("name, created_at").order("name");
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      await supabase.from(table).upsert(defaults.map((n) => ({ name: n })), { onConflict: "name" });
+    const types = await api.get<ItemType[]>('/item-types');
+    if (!types || types.length === 0) {
+      // Seed defaults if empty
+      for (const name of defaults) {
+        try {
+          await api.post('/item-types', { name });
+        } catch {}
+      }
       return defaults.map((n) => ({ name: n }));
     }
-    return data as ItemType[];
+    return types;
   } catch (e) {
-    console.warn("asset_types unavailable, falling back to defaults", e);
+    console.warn("item_types unavailable, falling back to defaults", e);
     return defaults.map((n) => ({ name: n }));
   }
 }
 
 export async function createItemType(name: string): Promise<ItemType> {
   if (!name || !name.trim()) throw new Error("Type name required");
-  if (!hasSupabaseEnv) {
-    // local no-op; return shape for UI
-    return { name };
-  }
-  const { data, error } = await supabase.from(table).insert({ name }).select("name, created_at").single();
-  if (error) throw error;
-  return data as ItemType;
+  return await api.post<ItemType>('/item-types', { name });
 }
 
 export async function deleteItemType(name: string): Promise<void> {
   if (!name || !name.trim()) throw new Error("Type name required");
-  if (!hasSupabaseEnv) return; // local no-op
-  // Try privileged RPC first (if present) to bypass RLS and guard referential integrity
-  const rpc = await supabase.rpc("delete_asset_type_v1", { p_name: name });
-  if (!rpc.error) return;
-  // Fallback to direct delete (may fail under RLS)
-  const { error } = await supabase.from(table).delete().eq("name", name);
-  if (error) throw error;
+  await api.delete(`/item-types/${encodeURIComponent(name)}`);
 }

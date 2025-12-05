@@ -6,7 +6,13 @@ import path from "path";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-  port: 8000,
+    port: 8000,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_URL || 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [react()].filter(Boolean),
   resolve: {
@@ -20,7 +26,6 @@ export default defineConfig(({ mode }) => ({
         manualChunks: {
           react: ["react", "react-dom", "react-router-dom"],
           charts: ["recharts"],
-          supabase: ["@supabase/supabase-js"],
           lucide: ["lucide-react"],
         },
       },

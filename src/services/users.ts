@@ -1,7 +1,7 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoUsers } from "@/lib/demo";
 import { createPasswordHash } from "@/services/auth";
 import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
+import { api } from "@/lib/api";
 
 export type AppUser = {
   id: string;
@@ -25,15 +25,11 @@ const USERS_CACHE_TTL = 30_000;
 
 export async function listUsers(options?: { force?: boolean }): Promise<AppUser[]> {
   if (isDemoMode()) return getDemoUsers() as any;
-  if (!hasSupabaseEnv) { return []; }
   try {
-    const columns = "id, name, email, role, department, phone, last_login, status, avatar_url, must_change_password, password_changed_at, active_session_id";
     return await getCachedValue(
       USERS_CACHE_KEY,
       async () => {
-        const { data, error } = await supabase.from(table).select(columns).order("name");
-        if (error) throw error;
-        return data ?? [];
+        return await api.get<AppUser[]>('/users');
       },
       { ttlMs: USERS_CACHE_TTL, force: options?.force }
     );
@@ -45,7 +41,6 @@ export async function listUsers(options?: { force?: boolean }): Promise<AppUser[
 // Optionally accept a password for local fallback; DB uses auth for real password handling
 export async function createUser(payload: Omit<AppUser, "id"> & { password?: string }): Promise<AppUser> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { password, ...dbPayload } = payload as any;
   
   // Ensure role is lowercase
@@ -59,43 +54,23 @@ export async function createUser(payload: Omit<AppUser, "id"> & { password?: str
     password_hash: hashed,
   };
   if (hashed) {
-    insertPayload.password_changed_at = dbPayload?.password_changed_at ?? null;
-    if (!dbPayload?.must_change_password) {
-      insertPayload.password_changed_at = new Date().toISOString();
-    }
-  }
-  const { data, error } = await supabase.from(table).insert(insertPayload).select().single();
-  if (error) throw error;
-  
-  // Create user_settings entry with email notifications enabled
-  // This is a fallback in case the database trigger doesn't exist
-  try {
-    await supabase.from('user_settings').insert({
-      user_id: data.id,
-      email_notifications: true,
-    }).select().single();
-  } catch (settingsError) {
-    // Ignore conflict errors (user_settings already exists from trigger)
-    console.log('user_settings creation skipped (already exists or trigger handled it)');
+    insertPayload.password_changed_at = dbPayload?.password_changed_at ?? new Date().toISOString();
   }
   
+  const user = await api.post<AppUser>('/users', insertPayload);
   invalidateCacheByPrefix(USERS_CACHE_KEY);
-  return data as AppUser;
+  return user;
 }
 
 export async function updateUser(id: string, patch: Partial<AppUser>): Promise<AppUser> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).update(patch).eq("id", id).select().single();
-  if (error) throw error;
+  const user = await api.put<AppUser>(`/users/${id}`, patch);
   invalidateCacheByPrefix(USERS_CACHE_KEY);
-  return data as AppUser;
+  return user;
 }
 
 export async function deleteUser(id: string): Promise<void> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { error } = await supabase.from(table).delete().eq("id", id);
-  if (error) throw error;
+  await api.delete(`/users/${id}`);
   invalidateCacheByPrefix(USERS_CACHE_KEY);
 }

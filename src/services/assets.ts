@@ -1,7 +1,6 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoAssets } from "@/lib/demo";
 import { getCachedValue, invalidateCache } from "@/lib/data-cache";
-import type { PostgrestError } from "@supabase/supabase-js";
+import { api } from "@/lib/api";
 
 export type Asset = {
   id: string; // e.g., AST-001
@@ -104,37 +103,11 @@ function toSnake(asset: Partial<Asset>, options?: { includeAmc?: boolean }) {
 
 export async function listAssets(options?: { force?: boolean }): Promise<Asset[]> {
   if (isDemoMode()) return getDemoAssets();
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  // Dynamically probe creator/amc fields once
-  const columns = `${supportsAmcFields === false ? BASE_COLUMNS.replace(/,amc_[^,]+/g, '') : BASE_COLUMNS}${supportsAmcFields === false ? '' : AMC_COLUMNS}`;
   return getCachedValue(
     ASSET_CACHE_KEY,
     async () => {
-      const { data, error } = await supabase
-        .from(table)
-        .select(columns)
-        .order("created_at", { ascending: false });
-      if (error) {
-        // If either AMC or creator columns are missing, progressively fall back
-        const msg = String(error.message || '');
-        const missingAmc = /amc_/i.test(msg);
-        const missingCreator = /(created_by|created_by_name|created_by_email)/i.test(msg);
-        if ((supportsAmcFields !== false && missingAmc) || (supportsCreatorFields !== false && missingCreator)) {
-          supportsAmcFields = false;
-          supportsCreatorFields = false;
-          const fallbackColumns = "id,name,type,property,property_id,department,quantity,purchase_date,expiry_date,po_number,condition,status,location,description,serial_number,created_at";
-          const fallback = await supabase
-            .from(table)
-            .select(fallbackColumns)
-            .order("created_at", { ascending: false });
-          if (fallback.error) throw fallback.error;
-          return (fallback.data ?? []).map(toCamel);
-        }
-        throw error;
-      }
-      if (supportsAmcFields === null) supportsAmcFields = true;
-      if (supportsCreatorFields === null) supportsCreatorFields = true;
-      return (data ?? []).map(toCamel);
+      const assets = await api.get<Asset[]>('/assets');
+      return assets.map(toCamel);
     },
     { ttlMs: ASSET_CACHE_TTL, force: options?.force },
   );
@@ -142,8 +115,6 @@ export async function listAssets(options?: { force?: boolean }): Promise<Asset[]
 
 export async function createAsset(asset: Asset): Promise<Asset> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  let includeAmc = supportsAmcFields !== false;
   // Enrich with creator info when available
   try {
     const raw = localStorage.getItem('auth_user');
@@ -154,72 +125,23 @@ export async function createAsset(asset: Asset): Promise<Asset> {
       (asset as any).createdByEmail = u?.email ?? null;
     }
   } catch {}
-  const payload = toSnake(asset, { includeAmc });
-  let { data, error } = await supabase
-    .from(table)
-    .insert(payload)
-    .select()
-    .single();
-  if (error) {
-    const msg = String(error.message || '');
-    const missingAmc = includeAmc && /amc_/i.test(msg);
-    const missingCreator = /(created_by|created_by_name|created_by_email)/i.test(msg);
-    if (missingAmc || missingCreator) {
-      if (missingAmc) supportsAmcFields = false;
-      if (missingCreator) supportsCreatorFields = false;
-      includeAmc = supportsAmcFields !== false;
-      const retryPayload = toSnake(asset, { includeAmc });
-    const retry = await supabase
-      .from(table)
-      .insert(retryPayload)
-      .select()
-      .single();
-    data = retry.data;
-    error = retry.error;
-  }
-  }
-  if (error) throw error;
-  if (supportsAmcFields === null && includeAmc) supportsAmcFields = true;
-  if (supportsCreatorFields === null) supportsCreatorFields = true;
+  const payload = toSnake(asset, { includeAmc: true });
+  const created = await api.post<Asset>('/assets', payload);
   invalidateCache(ASSET_CACHE_KEY);
-  return toCamel(data);
+  return toCamel(created);
 }
 
 export async function updateAsset(id: string, patch: Partial<Asset>): Promise<Asset> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  let includeAmc = supportsAmcFields !== false;
-  const payload = toSnake(patch, { includeAmc });
-  let { data, error } = await supabase
-    .from(table)
-    .update(payload)
-    .eq("id", id)
-    .select()
-    .single();
-  if (error && includeAmc && isMissingColumnError(error)) {
-    supportsAmcFields = false;
-    includeAmc = false;
-    const retryPayload = toSnake(patch, { includeAmc: false });
-    const retry = await supabase
-      .from(table)
-      .update(retryPayload)
-      .eq("id", id)
-      .select()
-      .single();
-    data = retry.data;
-    error = retry.error;
-  }
-  if (error) throw error;
-  if (supportsAmcFields === null && includeAmc) supportsAmcFields = true;
+  const payload = toSnake(patch, { includeAmc: true });
+  const updated = await api.put<Asset>(`/assets/${id}`, payload);
   invalidateCache(ASSET_CACHE_KEY);
-  return toCamel(data);
+  return toCamel(updated);
 }
 
 export async function deleteAsset(id: string): Promise<void> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { error } = await supabase.from(table).delete().eq("id", id);
-  if (error) throw error;
+  await api.delete(`/assets/${id}`);
   invalidateCache(ASSET_CACHE_KEY);
 }
 

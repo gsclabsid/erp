@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { addNotification, addRoleNotification } from "@/services/notifications";
 import { listUsers } from "@/services/users";
@@ -6,6 +5,7 @@ import { listUsers } from "@/services/users";
 import { listUserPropertyAccess } from "@/services/userAccess";
 import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
 import { sendTicketAssignedEmail, sendTicketStatusUpdateEmail } from "@/services/email";
+import { api } from "@/lib/api";
 
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
@@ -156,28 +156,29 @@ export async function listTickets(
     ));
     return out.sort((a,b) => (a.createdAt < b.createdAt ? 1 : -1));
   }
-  if (hasSupabaseEnv) {
-    try {
-      const cacheKey = makeTicketCacheKey(filter);
-      return await getCachedValue(
-        cacheKey,
-        async () => {
-          let query = supabase.from(TABLE).select("*").order("created_at", { ascending: false });
-          if (filter?.status) query = query.eq("status", filter.status);
-          if (filter?.assignee) query = query.eq("assignee", filter.assignee);
-          if (filter?.targetRole) query = query.eq("target_role", filter.targetRole);
-          if (filter?.createdBy) query = query.eq("created_by", filter.createdBy);
-          const { data, error } = await query;
-          if (error) throw error;
-          try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
-          return (data || []).map(toCamel);
-        },
-        { ttlMs: TICKET_CACHE_TTL, force: options?.force }
-      );
-    } catch (e) {
-      try { localStorage.setItem('tickets_fallback_reason', 'select_failed'); } catch {}
-      console.warn("tickets table unavailable, using localStorage", e);
-    }
+  try {
+    const cacheKey = makeTicketCacheKey(filter);
+    return await getCachedValue(
+      cacheKey,
+      async () => {
+        // Build query params
+        const params = new URLSearchParams();
+        if (filter?.status) params.append('status', filter.status);
+        if (filter?.assignee) params.append('assignee', filter.assignee);
+        if (filter?.targetRole) params.append('targetRole', filter.targetRole);
+        if (filter?.createdBy) params.append('createdBy', filter.createdBy);
+        
+        const queryString = params.toString();
+        const url = `/tickets${queryString ? `?${queryString}` : ''}`;
+        const tickets = await api.get<Ticket[]>(url);
+        try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
+        return tickets.map(toCamel);
+      },
+      { ttlMs: TICKET_CACHE_TTL, force: options?.force }
+    );
+  } catch (e) {
+    try { localStorage.setItem('tickets_fallback_reason', 'select_failed'); } catch {}
+    console.warn("tickets API unavailable, using localStorage", e);
   }
   const list = loadLocal();
   return list.filter(t => (
@@ -211,15 +212,13 @@ export async function listAssigneesForProperty(propertyId: string): Promise<Arra
   const managers = users.filter(u => norm(u.role) === 'manager' && norm(u.status) !== 'inactive');
   const admins = users.filter(u => norm(u.role) === 'admin' && norm(u.status) !== 'inactive');
   let allowedManagerIds = new Set<string>();
-  if (hasSupabaseEnv) {
-    try {
-      const { data, error } = await supabase.from('user_property_access').select('user_id').eq('property_id', propertyId);
-      if (!error) {
-        allowedManagerIds = new Set<string>((data || []).map((r: any) => String(r.user_id)));
-      }
-    } catch {
-      // fall through to per-user check
+  try {
+    const access = await api.get<Array<{ user_id: string; property_id: string }>>(`/user-property-access?propertyId=${propertyId}`);
+    if (access) {
+      allowedManagerIds = new Set<string>(access.map((r: any) => String(r.user_id)));
     }
+  } catch {
+    // fall through to per-user check
   }
   // If we couldn't build the set remotely, check per-user (fallback)
   if (allowedManagerIds.size === 0) {
@@ -279,16 +278,13 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
     invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
     return payload;
   }
-  if (hasSupabaseEnv) {
-    try {
-      const { data, error } = await supabase.from(TABLE).insert(toSnake(payload)).select("*").single();
-      if (error) throw error;
-      const created = toCamel(data);
-      // Clear fallback flag now that core insert worked
-      try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
+  try {
+    const created = await api.post<Ticket>('/tickets', toSnake(payload));
+    // Clear fallback flag now that core insert worked
+    try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
       // Log an event (best-effort)
       try {
-        await supabase.from('ticket_events').insert({ ticket_id: created.id, event_type: 'created', author: input.createdBy, message: created.title });
+        await api.post('/ticket-events', { ticket_id: created.id, event_type: 'created', author: input.createdBy, message: created.title });
       } catch (e) {
         console.warn('ticket_events insert failed, continuing', e);
       }
@@ -364,9 +360,9 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
     if (!('status' in patch) || !patch.status) return;
     const actor = getActorInfo();
     try {
-      if (!isDemoMode() && hasSupabaseEnv) {
-        const { data } = await supabase.from(TABLE).select('assignee').eq('id', id).limit(1).maybeSingle();
-        const assignee = (data as any)?.assignee ?? null;
+      if (!isDemoMode()) {
+        const ticket = await api.get<Ticket>(`/tickets/${id}`);
+        const assignee = ticket?.assignee ?? null;
         if (!assignee || ![actor.id, actor.email].filter(Boolean).some(v => String(assignee) === String(v))) throw new Error('NOT_AUTHORIZED');
       } else if (isDemoMode()) {
         const list = loadDemoTickets();
@@ -387,18 +383,16 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
 
   // Enforce permission for status changes
   await ensureCanChange();
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode()) {
     try {
-      const { data, error } = await supabase.from(TABLE).update(toSnake(toUpdate)).eq("id", id).select("*").single();
-      if (error) throw error;
-      const updated = toCamel(data);
+      const updated = await api.put<Ticket>(`/tickets/${id}`, toSnake(toUpdate));
       if (patch.status) {
         const event_type = patch.status === 'closed' ? 'closed' : 'status_change';
         const actor = getActorInfo();
         const msg = opts?.message || `Status -> ${patch.status}`;
-        await supabase.from('ticket_events').insert({ ticket_id: id, event_type, author: patch.assignee || patch.createdBy || actor.label, message: msg });
+        await api.post('/ticket-events', { ticket_id: id, event_type, author: patch.assignee || patch.createdBy || actor.label, message: msg });
         if (patch.status === 'closed' && opts?.message) {
-          await supabase.from(TABLE).update({ close_note: opts.message }).eq('id', id);
+          await api.put(`/tickets/${id}`, { close_note: opts.message });
         }
         // Notify interested parties
         await addNotification({
@@ -484,17 +478,12 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
 }
 
 export async function listTicketEvents(ticketId: string): Promise<TicketEvent[]> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode()) {
     try {
-      const { data, error } = await supabase
-        .from('ticket_events')
-        .select('id, ticket_id, event_type, author, message, created_at')
-        .eq('ticket_id', ticketId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data || []).map((r: any) => ({ id: r.id, ticketId: r.ticket_id, eventType: r.event_type, author: r.author, message: r.message, createdAt: r.created_at }));
+      const events = await api.get<Array<{ id: string; ticket_id: string; event_type: string; author: string; message: string; created_at: string }>>(`/ticket-events?ticketId=${ticketId}`);
+      return events.map((r: any) => ({ id: r.id, ticketId: r.ticket_id, eventType: r.event_type, author: r.author, message: r.message, createdAt: r.created_at }));
     } catch (e) {
-      console.warn('ticket_events unavailable, using localStorage', e);
+      console.warn('ticket_events API unavailable, using localStorage', e);
     }
   }
   if (isDemoMode()) {

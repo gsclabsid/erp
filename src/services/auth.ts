@@ -1,5 +1,5 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
+import { api } from "@/lib/api";
 
 export type MinimalUser = {
   id: string;
@@ -92,13 +92,12 @@ function sanitizeUser(row: any): MinimalUser | null {
 
 async function fetchRemoteUserByEmail(email: string): Promise<any | null> {
   const normalized = normalizeEmail(email);
-  const { data, error } = await supabase
-    .from(USERS_TABLE)
-    .select("id, name, email, role, department, phone, status, avatar_url, must_change_password, password_hash")
-    .eq("email", normalized)
-    .maybeSingle();
-  if (error) throw error;
-  return data ?? null;
+  try {
+    const users = await api.get<any[]>('/users');
+    return users.find((u: any) => normalizeEmail(u.email || "") === normalized) || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -112,35 +111,31 @@ export async function resolveIdentifierToEmail(identifier: string): Promise<stri
   if (!input) return null;
   if (input.includes("@")) return normalizeEmail(input);
 
-  // Treat as username/local-part
-  if (hasSupabaseEnv) {
-    try {
-      const { data, error } = await supabase
-        .from(USERS_TABLE)
-        .select("email, status")
-        .ilike("email", `${input}@%`)
-        .limit(25);
-      if (error) throw error;
-      const rows = Array.isArray(data) ? data : [];
-      if (rows.length === 0) return null;
-      const active = rows.find((r: any) => (r?.status || "").toLowerCase() === "active");
-      return normalizeEmail((active?.email || rows[0]?.email || "").trim());
-    } catch {
-      return null;
-    }
+  // Treat as username/local-part - try API first
+  try {
+    const users = await api.get<any[]>('/users');
+    const matches = users.filter((u: any) => {
+      const email = (u?.email || "").toLowerCase();
+      const local = email.split("@")[0] || "";
+      return local === input;
+    });
+    if (matches.length === 0) return null;
+    const active = matches.find((u: any) => (u?.status || "").toLowerCase() === "active");
+    const target = active || matches[0];
+    return normalizeEmail(target.email || "");
+  } catch {
+    // Fallback to local storage
+    const users = readLocalUsers();
+    const matches = users.filter((u) => {
+      const email = (u?.email || "").toLowerCase();
+      const local = email.split("@")[0] || "";
+      return local === input;
+    });
+    if (matches.length === 0) return null;
+    const active = matches.find((u) => (u?.status || "").toLowerCase() === "active");
+    const target = active || matches[0];
+    return normalizeEmail(target.email || "");
   }
-
-  // Local fallback (demo/dev): search local users by local-part
-  const users = readLocalUsers();
-  const matches = users.filter((u) => {
-    const email = (u?.email || "").toLowerCase();
-    const local = email.split("@")[0] || "";
-    return local === input;
-  });
-  if (matches.length === 0) return null;
-  const active = matches.find((u) => (u?.status || "").toLowerCase() === "active");
-  const target = active || matches[0];
-  return normalizeEmail(target.email || "");
 }
 
 function readLocalUsers(): any[] {
@@ -180,14 +175,14 @@ async function hashesMatch(password: string, storedHash: string): Promise<"match
 }
 
 async function upgradeRemoteHash(userId: string, password: string): Promise<void> {
-  if (!hasSupabaseEnv) return;
   const nextHash = await createPasswordHash(password);
   if (!nextHash) return;
   try {
-    await supabase
-      .from(USERS_TABLE)
-      .update({ password_hash: nextHash, password_changed_at: new Date().toISOString(), must_change_password: false })
-      .eq("id", userId);
+    await api.put(`/users/${userId}`, {
+      password_hash: nextHash,
+      password_changed_at: new Date().toISOString(),
+      must_change_password: false,
+    });
   } catch {}
 }
 
@@ -203,88 +198,52 @@ async function upgradeLocalHash(userId: string, password: string): Promise<void>
   writeLocalUsers(users);
 }
 
-async function verifyWithSupabaseAuth(email: string, password: string, keepSession = false): Promise<boolean> {
-  if (!hasSupabaseEnv) return false;
-  try {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return false;
-    return true;
-  } catch {
-    return false;
-  } finally {
-    if (!keepSession) {
-      try { await supabase.auth.signOut(); } catch {}
-    }
-  }
-}
-
-async function ensureSupabaseSession(email: string, password: string): Promise<void> {
-  if (!hasSupabaseEnv) return;
-  const target = (email || '').toLowerCase();
-  try {
-    const { data: userData } = await supabase.auth.getUser();
-    const currentEmail = (userData?.user?.email || '').toLowerCase();
-    if (userData?.user && currentEmail === target) {
-      // Already the correct user
-      return;
-    }
-    if (userData?.user && currentEmail !== target) {
-      // Logged in as someone else – sign out first
-      try { await supabase.auth.signOut(); } catch {}
-    }
-  } catch {}
-  try {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      // If we cannot sign in as target, ensure we don't keep an old session
-      try { await supabase.auth.signOut(); } catch {}
-    }
-  } catch {
-    // non-fatal: app will still work with local-only persistence for some features
-    try { await supabase.auth.signOut(); } catch {}
-  }
-}
+// Removed Supabase auth functions - no longer needed
 
 export async function loginWithPassword(email: string, password: string): Promise<MinimalUser | null> {
   const normalized = normalizeEmail(email);
   if (!normalized || !password) return null;
 
-  if (hasSupabaseEnv) {
-    const row = await fetchRemoteUserByEmail(normalized);
-    if (!row) return null;
-    if (!row.password_hash) {
-      const valid = await verifyWithSupabaseAuth(normalized, password, true);
-      if (!valid) return null;
-      await upgradeRemoteHash(row.id, password);
-      // Keep Supabase session for RLS-based tables
-      try { await ensureSupabaseSession(normalized, password); } catch {}
-      return sanitizeUser(row);
-    }
-    const outcome = await hashesMatch(password, row.password_hash);
-    if (outcome === "nomatch") {
-      const valid = await verifyWithSupabaseAuth(normalized, password, true);
-      if (!valid) return null;
-      await upgradeRemoteHash(row.id, password);
-      try { await ensureSupabaseSession(normalized, password); } catch {}
-      return sanitizeUser(row);
-    }
-    if (outcome === "legacy") {
-      await upgradeRemoteHash(row.id, password);
-    }
-    // Establish Supabase session to enable RLS-aware features
-    try { await ensureSupabaseSession(normalized, password); } catch {}
-    return sanitizeUser(row);
-  }
+  try {
+    // Try API first
+    const userData = await api.post<{ password_hash?: string } & MinimalUser>('/auth/login', {
+      email: normalized,
+      password, // API will verify, but we also verify client-side for security
+    });
 
-  const localUsers = readLocalUsers();
-  const local = localUsers.find((u) => normalizeEmail(u.email || "") === normalized);
-  if (!local || !local.password_hash) return null;
-  const outcome = await hashesMatch(password, local.password_hash);
-  if (outcome === "nomatch") return null;
-  if (outcome === "legacy") {
-    await upgradeLocalHash(local.id, password);
+    if (!userData || !userData.password_hash) {
+      return null;
+    }
+
+    // Verify password hash client-side
+    const outcome = await hashesMatch(password, userData.password_hash);
+    if (outcome === "nomatch") {
+      return null;
+    }
+
+    if (outcome === "legacy") {
+      // Upgrade hash via API
+      const newHash = await createPasswordHash(password);
+      if (newHash) {
+        try {
+          await api.put(`/users/${userData.id}`, { password_hash: newHash, password_changed_at: new Date().toISOString() });
+        } catch {}
+      }
+    }
+
+    return sanitizeUser(userData);
+  } catch (error) {
+    // Fallback to local storage if API fails
+    const localUsers = readLocalUsers();
+    const local = localUsers.find((u) => normalizeEmail(u.email || "") === normalized);
+    if (!local || !local.password_hash) return null;
+    const outcome = await hashesMatch(password, local.password_hash);
+    if (outcome === "nomatch") return null;
+    if (outcome === "legacy") {
+      await upgradeLocalHash(local.id, password);
+    }
+    return sanitizeUser(local);
   }
-  return sanitizeUser(local);
 }
 
 /**
@@ -322,57 +281,67 @@ export async function verifyCurrentUserPassword(password: string): Promise<boole
 export async function changeOwnPassword(email: string, currentPassword: string, newPassword: string): Promise<void> {
   const normalized = normalizeEmail(email);
   if (!normalized || !currentPassword || !newPassword) throw new Error("Missing fields");
-  if (hasSupabaseEnv) {
-    // Precompute hash client-side to avoid server digest dependency
+  
+  try {
+    // Verify current password first
+    const user = await loginWithPassword(normalized, currentPassword);
+    if (!user) throw new Error("INVALID_CURRENT_PASSWORD");
+    
+    // Update password via API
     const hashed = await createPasswordHash(newPassword);
     if (!hashed) throw new Error("Invalid new password");
-    const { error } = await supabase.rpc("self_set_password_hash_v1", {
-      p_email: normalized,
-      p_new_password_hash: hashed,
-    } as any);
-    if (error) throw error;
-    return;
+    
+    await api.put(`/users/${user.id}`, {
+      password_hash: hashed,
+      password_changed_at: new Date().toISOString(),
+      must_change_password: false,
+    });
+  } catch (error: any) {
+    // Fallback to local storage
+    const users = readLocalUsers();
+    const idx = users.findIndex((u) => normalizeEmail(u.email || "") === normalized);
+    if (idx === -1) throw new Error("User not found");
+    const stored = users[idx].password_hash || "";
+    const match = await hashesMatch(currentPassword, stored);
+    if (match === "nomatch") throw new Error("INVALID_CURRENT_PASSWORD");
+    const hashed = await createPasswordHash(newPassword);
+    if (!hashed) throw new Error("Invalid new password");
+    users[idx].password_hash = hashed;
+    users[idx].password_changed_at = new Date().toISOString();
+    users[idx].must_change_password = false;
+    writeLocalUsers(users);
   }
-  // Local fallback: verify and update locally
-  const users = readLocalUsers();
-  const idx = users.findIndex((u) => normalizeEmail(u.email || "") === normalized);
-  if (idx === -1) throw new Error("User not found");
-  const stored = users[idx].password_hash || "";
-  const match = await hashesMatch(currentPassword, stored);
-  if (match === "nomatch") throw new Error("INVALID_CURRENT_PASSWORD");
-  const hashed = await createPasswordHash(newPassword);
-  if (!hashed) throw new Error("Invalid new password");
-  users[idx].password_hash = hashed;
-  users[idx].password_changed_at = new Date().toISOString();
-  users[idx].must_change_password = false;
-  writeLocalUsers(users);
 }
 
 // Admin resets a user's password via secure RPC (verifies admin password server-side)
 export async function adminSetUserPassword(adminEmail: string, adminPassword: string, targetUserId: string, newPassword: string): Promise<void> {
   const normalizedAdmin = normalizeEmail(adminEmail);
   if (!normalizedAdmin || !targetUserId || !newPassword) throw new Error("Missing fields");
-  if (hasSupabaseEnv) {
+  
+  // Verify admin credentials
+  const admin = await loginWithPassword(normalizedAdmin, adminPassword);
+  if (!admin || admin.role !== 'admin') throw new Error("Unauthorized");
+  
+  try {
     const hashed = await createPasswordHash(newPassword);
     if (!hashed) throw new Error("Invalid new password");
-    const { error } = await supabase.rpc("admin_set_user_password_hash_v1", {
-      p_admin_email: normalizedAdmin,
-      p_target_user_id: targetUserId,
-      p_new_password_hash: hashed,
-    } as any);
-    if (error) throw error;
-    return;
+    await api.put(`/users/${targetUserId}`, {
+      password_hash: hashed,
+      password_changed_at: new Date().toISOString(),
+      must_change_password: false,
+    });
+  } catch (error: any) {
+    // Fallback to local storage
+    const users = readLocalUsers();
+    const idx = users.findIndex((u) => u.id === targetUserId);
+    if (idx === -1) throw new Error("User not found");
+    const hashed = await createPasswordHash(newPassword);
+    if (!hashed) throw new Error("Invalid new password");
+    users[idx].password_hash = hashed;
+    users[idx].password_changed_at = new Date().toISOString();
+    users[idx].must_change_password = false;
+    writeLocalUsers(users);
   }
-  // Local fallback: update stored list
-  const users = readLocalUsers();
-  const idx = users.findIndex((u) => u.id === targetUserId);
-  if (idx === -1) throw new Error("User not found");
-  const hashed = await createPasswordHash(newPassword);
-  if (!hashed) throw new Error("Invalid new password");
-  users[idx].password_hash = hashed;
-  users[idx].password_changed_at = new Date().toISOString();
-  users[idx].must_change_password = false;
-  writeLocalUsers(users);
 }
 
 export async function logout(): Promise<void> {
@@ -380,26 +349,24 @@ export async function logout(): Promise<void> {
     localStorage.removeItem("current_user_id");
     localStorage.removeItem("auth_user");
   } catch {}
-  if (hasSupabaseEnv) {
-    try { await supabase.auth.signOut(); } catch {}
-  }
 }
 
 export async function updateLastLogin(email: string): Promise<void> {
   const normalized = normalizeEmail(email);
-  if (hasSupabaseEnv && normalized) {
-    try {
-      const now = new Date().toISOString();
-      await supabase.from(USERS_TABLE).update({ last_login: now }).eq("email", normalized);
-    } catch {
-      // best effort only
+  if (!normalized) return;
+  
+  try {
+    const users = await api.get<any[]>('/users');
+    const user = users.find((u: any) => normalizeEmail(u.email || "") === normalized);
+    if (user) {
+      await api.put(`/users/${user.id}`, { last_login: new Date().toISOString() });
     }
-    return;
+  } catch {
+    // Fallback to local storage
+    const localUsers = readLocalUsers();
+    const idx = localUsers.findIndex((u) => normalizeEmail(u.email || "") === normalized);
+    if (idx === -1) return;
+    localUsers[idx].last_login = new Date().toISOString();
+    writeLocalUsers(localUsers);
   }
-
-  const localUsers = readLocalUsers();
-  const idx = localUsers.findIndex((u) => normalizeEmail(u.email || "") === normalized);
-  if (idx === -1) return;
-  localUsers[idx].last_login = new Date().toISOString();
-  writeLocalUsers(localUsers);
 }
