@@ -25,7 +25,6 @@ import { verifyAssetViaScan, listMyScansForSession } from "@/services/auditScans
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 
 type Row = { id: string; name: string; status: "verified" | "missing" | "damaged"; comment: string };
 
@@ -542,7 +541,7 @@ export default function Audit() {
   }, [refreshKey]);
 
   useEffect(() => {
-    if (!hasSupabaseEnv) return;
+    if (!false) return;
     const deptLower = (role === "admin" ? adminDept : department).toLowerCase();
     const propertyLower = String(selectedPropertyId || "").toLowerCase();
     const userLower = (myId || "").toLowerCase();

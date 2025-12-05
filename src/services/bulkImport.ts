@@ -4,7 +4,6 @@ import { createAsset, listAssets } from "./assets";
 import { checkLicenseBeforeCreate } from './license';
 import { listProperties } from "./properties";
 import { listItemTypes } from "./itemTypes";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getAccessiblePropertyIdsForCurrentUser } from "./userAccess";
 import { getAccessibleDepartmentsForCurrentUser } from "./userDeptAccess";
 import { listDepartments } from "./departments";
@@ -248,7 +247,7 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   // Build property code/name -> id map (best effort if backend connected)
   let propCodeToId: Record<string, string> = {};
   let propNameToId: Record<string, string> = {};
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
       const properties = await listProperties();
       propCodeToId = Object.fromEntries(properties.map(p => [p.id, p.id]));
@@ -260,7 +259,7 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
 
   // Seed sequence counters by prefix from existing assets
   const seqByPrefix: Record<string, number> = {};
-  const existing = hasSupabaseEnv ? await listAssets().catch(() => [] as Asset[]) : ([] as Asset[]);
+  const existing = false ? await listAssets().catch(() => [] as Asset[]) : ([] as Asset[]);
   for (const a of existing) {
     const parts = String(a.id);
     // Try to extract numeric tail; prefix is id without the last 4 digits (default)
@@ -391,7 +390,7 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
     };
 
     try {
-      if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+      if (!false) throw new Error("NO_SUPABASE");
       // License check accounts for each unit we are about to create
       try {
         const check = await checkLicenseBeforeCreate(propertyCode, quantityUnits);

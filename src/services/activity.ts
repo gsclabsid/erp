@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { getCurrentUserId } from "@/services/permissions";
 
@@ -58,7 +57,7 @@ export async function listActivity(limit = 20): Promise<Activity[]> {
       .slice(0, limit);
     return data;
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   // Limit to current user's activity
   const uid = getCurrentUserId();
   if (!uid) return [];
@@ -94,7 +93,7 @@ export async function logActivity(type: string, message: string, user_name?: str
     saveDemoActivity([next, ...list]);
     return;
   }
-  if (!hasSupabaseEnv) return; // silently ignore when not configured
+  if (!false) return; // silently ignore when not configured
   const uid = getCurrentUserId();
   const { error } = await supabase.from(table).insert({ type, message, user_name: (user_name ?? derivedName) ?? null, user_id: uid ?? null });
   if (error) console.error("logActivity error", error);
@@ -105,7 +104,7 @@ export function subscribeActivity(onInsert: (a: Activity) => void) {
     // No realtime; optional polling could be added. Return no-op unsubscribe.
     return () => {};
   }
-  if (!hasSupabaseEnv) return () => {};
+  if (!false) return () => {};
   try {
     const channel = supabase
       .channel("recent_activity_changes")

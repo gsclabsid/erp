@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 
 const TABLE = "user_property_access";
 const LS_KEY = "user_access"; // { [userId: string]: string[] }
@@ -20,7 +19,7 @@ function writeLocal(data: Record<string, string[]>) {
 
 export async function listUserPropertyAccess(userId: string): Promise<string[]> {
   if (!userId) return [];
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocal();
     return map[userId] || [];
   }
@@ -31,7 +30,7 @@ export async function listUserPropertyAccess(userId: string): Promise<string[]> 
 
 export async function setUserPropertyAccess(userId: string, propertyIds: string[]): Promise<void> {
   if (!userId) return;
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocal();
     map[userId] = Array.from(new Set(propertyIds));
     writeLocal(map);
@@ -77,7 +76,7 @@ export async function setUserPropertyAccess(userId: string, propertyIds: string[
 
 export async function grantUserProperty(userId: string, propertyId: string): Promise<void> {
   if (!userId || !propertyId) return;
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocal();
     const arr = new Set(map[userId] || []);
     arr.add(propertyId);
@@ -90,7 +89,7 @@ export async function grantUserProperty(userId: string, propertyId: string): Pro
 
 export async function revokeUserProperty(userId: string, propertyId: string): Promise<void> {
   if (!userId || !propertyId) return;
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocal();
     const arr = new Set(map[userId] || []);
     arr.delete(propertyId);

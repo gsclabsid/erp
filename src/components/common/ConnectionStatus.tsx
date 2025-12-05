@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { supabase, hasSupabaseEnv } from "@/lib/supabaseClient";
 import { AlertCircle, RefreshCw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,38 +17,37 @@ export function ConnectionStatus() {
   const [open, setOpen] = useState(false);
 
   const checkConnection = async () => {
-    if (!hasSupabaseEnv) {
-      setStatus("error");
-      setErrorDetails("Supabase environment variables not configured");
-      return;
-    }
-
     try {
       setStatus("checking");
-      // Simple health check - try to query a small table or use a lightweight RPC
-      const { error } = await supabase
-        .from("properties")
-        .select("id", { count: "exact", head: true })
-        .limit(1);
+      // Check API server health - use relative path to go through Vite proxy
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      // Always use relative path in browser to go through Vite proxy
+      const healthUrl = apiUrl.startsWith('http') && typeof window === 'undefined' 
+        ? `${apiUrl}/health` 
+        : '/api/health';
+      
+      const response = await fetch(healthUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-      if (error) {
-        // Check if it's a CORS/network error
-        if (error.message.includes("Failed to fetch") || 
-            error.message.includes("NetworkError") ||
-            error.message.includes("CORS")) {
-          setStatus("disconnected");
-          setErrorDetails("Cannot connect to Supabase. Your project may be paused or have network restrictions.");
-        } else {
-          setStatus("error");
-          setErrorDetails(error.message);
-        }
-      } else {
+      if (!response.ok) {
+        setStatus("error");
+        setErrorDetails(`API server returned status ${response.status}`);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.status === 'ok' && data.database === 'connected') {
         setStatus("connected");
         setErrorDetails("");
+      } else {
+        setStatus("error");
+        setErrorDetails(data.database === 'disconnected' ? 'Database connection failed' : 'API server error');
       }
     } catch (err: any) {
       setStatus("disconnected");
-      setErrorDetails(err?.message || "Unknown connection error");
+      setErrorDetails(err?.message || "Cannot connect to API server. Make sure the server is running.");
     }
   };
 
@@ -111,9 +109,10 @@ export function ConnectionStatus() {
                 <div className="text-xs space-y-2 bg-muted/50 p-3 rounded-lg border border-border/50">
                   <p className="font-medium text-foreground">Possible causes:</p>
                   <ul className="list-disc list-inside space-y-1 opacity-80">
-                    <li>Supabase project paused (inactivity)</li>
+                    <li>API server not running</li>
                     <li>Internet connection lost</li>
                     <li>Firewall blocking access</li>
+                    <li>Database connection failed</li>
                   </ul>
                 </div>
               )}
@@ -130,12 +129,6 @@ export function ConnectionStatus() {
                 {isRetrying ? "Retrying..." : "Retry Connection"}
               </Button>
             </div>
-            
-            {status === "disconnected" && (
-               <div className="text-[10px] text-center text-muted-foreground pt-1">
-                 If this persists, check <a href="https://status.supabase.com/" target="_blank" rel="noreferrer" className="underline hover:text-primary">Supabase Status</a>
-               </div>
-            )}
           </div>
         </PopoverContent>
       </Popover>

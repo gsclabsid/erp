@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { getCurrentUserId } from "@/services/permissions";
 import { playNotificationSound } from "@/lib/sound";
@@ -30,7 +29,7 @@ function saveLocal(list: Notification[]) {
 }
 
 export async function listNotifications(limit = 50): Promise<Notification[]> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const uid = getCurrentUserId();
       if (!uid) return [];
@@ -61,7 +60,7 @@ export async function addNotification(
     read: input.read ?? false,
     created_at: new Date().toISOString(),
   };
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const uid = getCurrentUserId();
       // Try to capture user_name for auditability
@@ -113,7 +112,7 @@ export async function addUserNotification(
     read: input.read ?? false,
     created_at: new Date().toISOString(),
   };
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       let user_name: string | null = null;
       try {
@@ -166,7 +165,7 @@ export async function addRoleNotification(
   opts?: { silent?: boolean }
 ): Promise<void> {
   // In demo or without Supabase, fall back to a single local notification (best-effort)
-  if (!hasSupabaseEnv || isDemoMode()) {
+  if (!false || isDemoMode()) {
     await addNotification(input, opts);
     return;
   }
@@ -215,7 +214,7 @@ export async function addRoleNotification(
 }
 
 export async function markAllRead(): Promise<void> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const uid = getCurrentUserId();
       if (!uid) return;
@@ -231,7 +230,7 @@ export async function markAllRead(): Promise<void> {
 }
 
 export async function clearAllNotifications(): Promise<void> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const uid = getCurrentUserId();
       if (!uid) return;

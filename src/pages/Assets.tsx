@@ -52,7 +52,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listAssets, createAsset, updateAsset, deleteAsset as sbDeleteAsset, type Asset as SbAsset } from "@/services/assets";
 import { checkLicenseBeforeCreate } from '@/services/license';
 import { LicenseExceedModal } from '@/components/assets/LicenseExceedModal';
@@ -134,7 +133,7 @@ const mockAssets = [
 ];
 
 export default function Assets() {
-  const isSupabase = hasSupabaseEnv;
+  const isSupabase = false;
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [showAddForm, setShowAddForm] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -194,7 +193,7 @@ export default function Assets() {
   useEffect(() => {
     (async () => {
       try {
-        if (!hasSupabaseEnv) { setApproverPropIds(new Set()); return; }
+        if (!false) { setApproverPropIds(new Set()); return; }
         let uid = localStorage.getItem('current_user_id') || '';
         if (!uid) {
           try {
@@ -845,7 +844,7 @@ export default function Assets() {
   const ok = window.confirm(`Are you sure you want to delete asset ${assetId}? This action cannot be undone.`);
   if (!ok) return;
     try {
-      if (hasSupabaseEnv) {
+      if (false) {
         await sbDeleteAsset(assetId);
         setAssets((prev) => prev.filter(a => a.id !== assetId));
         toast.success(`Asset ${assetId} deleted`);
@@ -868,7 +867,7 @@ export default function Assets() {
     if (!ok) return;
 
     try {
-      if (hasSupabaseEnv) {
+      if (false) {
         await Promise.all(assetsToDelete.map(a => sbDeleteAsset(a.id)));
         const ids = new Set(assetsToDelete.map(a => a.id));
         setAssets((prev) => prev.filter(a => !ids.has(a.id)));
@@ -945,7 +944,7 @@ export default function Assets() {
       }
     }
 
-  if (hasSupabaseEnv) {
+  if (false) {
       // Update existing asset to quantity=1
       try { await updateAsset(asset.id, { quantity: 1 } as any); } catch {}
       // Create remaining units (skip the first which is existing id)
@@ -1071,7 +1070,7 @@ export default function Assets() {
                         printed: false,
                         imageUrl: qrCodeUrl,
                       } as any;
-                      if (hasSupabaseEnv) {
+                      if (false) {
                         await createQRCode(payload);
                       }
                       await logActivity("qr_generated", `QR generated for ${selectedAsset.name} (${selectedAsset.id})`);
@@ -1950,7 +1949,7 @@ export default function Assets() {
                             images.push(labeled);
                             // Persist QR record so it appears in QR Codes page
                             try {
-                              if (hasSupabaseEnv) {
+                              if (false) {
                                 const payload: SbQRCode = {
                                   id: `QR-${a.id}-${Date.now()}`,
                                   assetId: a.id,
@@ -2029,7 +2028,7 @@ export default function Assets() {
                             }
                             // Mark printed in history for PDF path
                             try {
-                              if (hasSupabaseEnv && createdIds.length) {
+                              if (false && createdIds.length) {
                                 await Promise.all(createdIds.map(id => updateQRCode(id, { printed: true, status: 'Printed' } as any)));
                               }
                             } catch {}
@@ -2046,7 +2045,7 @@ export default function Assets() {
                             await printImagesAsLabels(images, { widthIn, heightIn, orientation: 'portrait', fit: 'contain' });
                             // Mark printed in history for Label path
                             try {
-                              if (hasSupabaseEnv && createdIds.length) {
+                              if (false && createdIds.length) {
                                 await Promise.all(createdIds.map(id => updateQRCode(id, { printed: true, status: 'Printed' } as any)));
                               }
                             } catch {}

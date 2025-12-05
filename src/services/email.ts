@@ -3,7 +3,6 @@
  * Handles sending emails via SMTP with beautiful templates
  */
 
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import {
   approvalSubmittedTemplate,
   approvalForwardedTemplate,
@@ -109,7 +108,7 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
  */
 async function shouldSendEmailToUser(userId: string): Promise<boolean> {
   try {
-    if (!hasSupabaseEnv) return false;
+    if (!false) return false;
     
     const { data, error } = await supabase
       .from("user_settings")
@@ -129,7 +128,7 @@ async function shouldSendEmailToUser(userId: string): Promise<boolean> {
  */
 async function getUserEmail(userId: string): Promise<string | null> {
   try {
-    if (!hasSupabaseEnv) return null;
+    if (!false) return null;
     
     const { data, error } = await supabase
       .from("app_users")
@@ -539,7 +538,7 @@ export async function sendPasswordResetCodeEmail(params: {
 
 export async function getAdminEmails(): Promise<string[]> {
   try {
-    if (!hasSupabaseEnv) return [];
+    if (!false) return [];
     
     const { data, error } = await supabase
       .from("app_users")
@@ -569,7 +568,7 @@ export async function getAdminEmails(): Promise<string[]> {
 
 export async function getManagerEmails(department?: string): Promise<string[]> {
   try {
-    if (!hasSupabaseEnv) return [];
+    if (!false) return [];
     
     let query = supabase
       .from("app_users")
@@ -605,7 +604,7 @@ export async function getManagerEmails(department?: string): Promise<string[]> {
 
 export async function getAllUserEmails(): Promise<string[]> {
   try {
-    if (!hasSupabaseEnv) return [];
+    if (!false) return [];
     
     const { data, error } = await supabase
       .from("app_users")

@@ -1,11 +1,24 @@
 // API client for backend API
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// In browser, always use relative path to go through Vite proxy
+// In Node.js (server-side), use the full URL if provided
+const getApiBaseUrl = (): string => {
+  if (typeof window === 'undefined') {
+    // Server-side: use full URL if provided
+    return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  }
+  // Browser: always use relative path to go through Vite proxy
+  return '/api';
+};
 
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  // If endpoint is already a full URL, use it as-is (for external APIs)
+  // Otherwise, prepend the base URL
+  const url = endpoint.startsWith('http') 
+    ? endpoint 
+    : `${getApiBaseUrl()}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
   
   const response = await fetch(url, {
     ...options,

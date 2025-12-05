@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { listQRCodes, createQRCode, updateQRCode, deleteAllQRCodes, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { logActivity } from "@/services/activity";
@@ -174,7 +173,7 @@ export default function QRCodes() {
         try { if (!isAdmin) allowed = await getAccessiblePropertyIdsForCurrentUser(); } catch {}
         setAllowedProps(allowed);
 
-        if (isDemoMode() || hasSupabaseEnv) {
+        if (isDemoMode() || false) {
           const [data, props, allAssets] = await Promise.all([
             listQRCodes(),
             listProperties().catch(() => [] as Property[]),
@@ -323,7 +322,7 @@ export default function QRCodes() {
 
   const handleClearAll = async () => {
     if (role !== 'admin') return;
-    const supabaseReady = isDemoMode() || hasSupabaseEnv;
+    const supabaseReady = isDemoMode() || false;
     if (!supabaseReady) {
       toast.warning('Supabase connection is not configured, nothing to clear.');
       return;
@@ -467,7 +466,7 @@ export default function QRCodes() {
   const today = new Date().toISOString().slice(0,10);
   const png = await generateQrPng({ assetId: asset.id, assetName: asset.name, property: asset.property });
       const id = `QR-${Math.floor(Math.random()*900+100)}`;
-      if (isDemoMode() || hasSupabaseEnv) {
+      if (isDemoMode() || false) {
         const payload: SbQRCode = {
           id,
           assetId: asset.id,
@@ -709,7 +708,7 @@ export default function QRCodes() {
           const url = await generateQrPng(q);
           entries.push([q.id, url]);
           // Persist to DB for consistency
-          if (isDemoMode() || hasSupabaseEnv) {
+          if (isDemoMode() || false) {
             try { await updateQRCode(q.id, { imageUrl: url } as any); } catch {}
           }
         } catch (e) {
@@ -735,7 +734,7 @@ export default function QRCodes() {
  
 
   // Show skeleton while initial data loads (when Supabase is enabled)
-  if (loadingUI && hasSupabaseEnv) {
+  if (loadingUI && false) {
     return <PageSkeleton />;
   }
 
@@ -835,7 +834,7 @@ export default function QRCodes() {
               onClick={handleClearAll}
               variant="outline"
               className="gap-2 w-full sm:w-auto"
-              disabled={purging || (!isDemoMode() && !hasSupabaseEnv)}
+              disabled={purging || (!isDemoMode() && !false)}
             >
               {purging ? (
                 'Clearing…'
@@ -1122,7 +1121,7 @@ export default function QRCodes() {
                         if (!dataUrl) throw new Error('No image');
                         // Print one per A4 page
                         await printImagesOnA4Grid([dataUrl]);
-                        if (hasSupabaseEnv) { await updateQRCode(qrCode.id, { printed: true } as any); }
+                        if (false) { await updateQRCode(qrCode.id, { printed: true } as any); }
                         setCodes(prev => prev.map(c => c.id === qrCode.id ? { ...c, printed: true } : c));
                         toast.success(`Opened print for ${qrCode.assetName}`);
                         await logActivity('qr_printed', `Printed QR for ${qrCode.assetName} (${qrCode.assetId})`);
@@ -1193,7 +1192,7 @@ export default function QRCodes() {
           </div>
         )}
 
-        {!hasSupabaseEnv && (
+        {!false && (
           <Card className="border-warning/50 bg-warning/5">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">

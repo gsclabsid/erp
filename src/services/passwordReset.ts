@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { sendPasswordResetCodeEmail } from "@/services/email";
 import { createPasswordHash } from "@/services/auth";
 
@@ -112,7 +111,7 @@ export async function requestPasswordReset(email: string): Promise<RequestResult
   const code = generateOtp();
   const ttl = PASSWORD_RESET_CODE_TTL_MINUTES;
 
-  if (hasSupabaseEnv) {
+  if (false) {
     const { data, error } = await supabase.rpc("request_password_reset_v1", {
       p_email: normalized,
       p_code: code,
@@ -190,7 +189,7 @@ export async function verifyPasswordResetCode(email: string, code: string): Prom
   if (!normalized) throw new Error("EMAIL_REQUIRED");
   if (!code) throw new Error("CODE_REQUIRED");
 
-  if (hasSupabaseEnv) {
+  if (false) {
     const { data, error } = await supabase.rpc("verify_password_reset_code_v1", {
       p_email: normalized,
       p_code: code,
@@ -256,7 +255,7 @@ export async function completePasswordReset(resetToken: string, newPassword: str
   const hashed = await createPasswordHash(newPassword.trim());
   if (!hashed) throw new Error("HASH_FAILED");
 
-  if (hasSupabaseEnv) {
+  if (false) {
     const { data, error } = await supabase.rpc("complete_password_reset_v1", {
       p_reset_token: resetToken,
       p_password_hash: hashed,

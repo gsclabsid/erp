@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { sendNewsletterEmail, getAllUserEmails } from "@/services/email";
 
@@ -37,7 +36,7 @@ function saveLocal(list: NewsletterPost[]) {
   } catch {}
 }
 function purgeLocalIfProduction() {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       localStorage.removeItem(LS_KEY);
       localStorage.removeItem(FB_KEY);
@@ -55,7 +54,7 @@ const DEFAULT_CATEGORIES: NewsletterCategory[] = [
 ];
 
 export async function listNewsletterCategories(): Promise<NewsletterCategory[]> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { data, error } = await supabase.from(CAT_TABLE).select('key,label,hue').order('label');
       if (error) throw error;
@@ -69,7 +68,7 @@ export async function listNewsletterCategories(): Promise<NewsletterCategory[]> 
 }
 
 export async function listNewsletterPosts(limit = 20): Promise<NewsletterPost[]> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { data, error } = await supabase
         .from(TABLE)
@@ -121,7 +120,7 @@ export async function listNewsletterPosts(limit = 20): Promise<NewsletterPost[]>
 }
 
 export async function listAllNewsletterPosts(limit = 200): Promise<NewsletterPost[]> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { data, error } = await supabase
         .from(TABLE)
@@ -175,7 +174,7 @@ export async function createNewsletterPost(input: { title: string; body: string;
     updated_at: null,
     category: input.category || 'release_notes',
   };
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { data, error } = await supabase
         .from(TABLE)
@@ -216,7 +215,7 @@ export async function createNewsletterPost(input: { title: string; body: string;
 }
 
 export async function updateNewsletterPost(id: string, patch: Partial<Pick<NewsletterPost,'title'|'body'|'published'|'category'>>): Promise<NewsletterPost> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { data, error } = await supabase
         .from(TABLE)
@@ -265,7 +264,7 @@ export async function updateNewsletterPost(id: string, patch: Partial<Pick<Newsl
 }
 
 export async function deleteNewsletterPost(id: string): Promise<void> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { error } = await supabase.from(TABLE).delete().eq('id', id);
       if (error) throw error;

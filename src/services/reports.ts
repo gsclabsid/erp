@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 
 export type Report = {
@@ -33,7 +32,7 @@ export async function listReports(): Promise<Report[]> {
       return [];
     }
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
   if (error) throw error;
   const list = (data ?? []) as Report[];
@@ -79,7 +78,7 @@ export async function createReport(payload: Omit<Report, "id" | "created_at">): 
     } catch {}
     return report;
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   // Attempt insert with all fields; if columns are missing in DB, retry without filter_* fields
   let result = await supabase.from(table).insert(payload).select().single();
   if (result.error) {
@@ -134,7 +133,7 @@ export async function clearReports(): Promise<void> {
     try { localStorage.setItem('demo_reports', JSON.stringify([])); } catch {}
     return;
   }
-  if (!hasSupabaseEnv) {
+  if (!false) {
     // No backend configured; treat as no-op so UI can proceed without an error
     try { localStorage.removeItem('report_meta'); } catch {}
     return;

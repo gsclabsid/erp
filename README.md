@@ -113,15 +113,14 @@ Visit `http://localhost:5173` in your browser.
 
 ### Environment Configuration
 
-Copy `.env.example` to `.env.local` and populate the following when integrating with Supabase:
+SAMS now uses PostgreSQL with a local API server. See `SETUP_COMPLETE.md` for setup instructions.
 
-```bash
-VITE_SUPABASE_URL=
-VITE_SUPABASE_SERVICE_KEY=
-VITE_SUPABASE_ANON_KEY=
-```
+The application uses Docker Compose to run:
+- PostgreSQL database (port 5432)
+- Express API server (port 3001)
+- Vite development server (port 8000)
 
-When the environment variables are absent, SAMS gracefully falls back to seeded demo data, allowing evaluation without backend services.
+When the API server is unavailable, SAMS gracefully falls back to localStorage, allowing evaluation without backend services.
 
 ## Everyday Development
 
@@ -136,7 +135,7 @@ We recommend enabling the workspace ESLint and Tailwind extensions in VS Code fo
 
 - **Testing:** component level tests are being introduced alongside critical modules; snapshot and regression suites are planned for future milestones.
 - **Accessibility:** UI patterns follow Shadcn/Radix best practices (keyboard navigable, ARIA annotations).
-- **Logging:** application events are surfaced through toast notifications and audit trails; Supabase provides server-side logs when enabled.
+- **Logging:** application events are surfaced through toast notifications and audit trails; PostgreSQL provides server-side logs when enabled.
 
 ## Pending Initiatives
 

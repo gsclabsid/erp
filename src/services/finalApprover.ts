@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 
 // Property-wise Final Approver mapping
 // Remote table expectation (if available): final_approvers(property_id text primary key, user_id text, user_name text nullable)
@@ -11,7 +10,7 @@ export type FinalApprover = {
 
 export async function getFinalApprover(propertyId: string): Promise<FinalApprover | null> {
   if (!propertyId) return null;
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from('final_approvers').select('*').eq('property_id', propertyId).maybeSingle();
   if (error) throw error;
   if (data) return { property_id: data.property_id, user_id: data.user_id, user_name: data.user_name };
@@ -20,7 +19,7 @@ export async function getFinalApprover(propertyId: string): Promise<FinalApprove
 
 export async function listFinalApproverPropsForUser(userId: string): Promise<string[]> {
   if (!userId) return [];
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from('final_approvers').select('property_id').eq('user_id', userId);
   if (error) throw error;
   return (data || []).map((r: any) => String(r.property_id));
@@ -30,7 +29,7 @@ export async function listFinalApproverPropsForUser(userId: string): Promise<str
 export async function listFinalApproverPropsForEmail(email: string): Promise<string[]> {
   const em = (email || '').trim();
   if (!em) return [];
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   try {
     // Prefer SECURITY DEFINER RPC that resolves auth uid from email
     const { data, error } = await supabase.rpc('list_final_approver_props_for_email_v1', { p_email: em } as any);
@@ -52,7 +51,7 @@ export async function listFinalApproverPropsForEmail(email: string): Promise<str
 
 export async function setFinalApproverForProperty(propertyId: string, userId: string, userName?: string | null): Promise<void> {
   if (!propertyId || !userId) return;
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   try {
     // Prefer SECURITY DEFINER RPC
     const { error: rpcErr } = await supabase.rpc('set_final_approver_v1', {
@@ -75,7 +74,7 @@ export async function setFinalApproverForProperty(propertyId: string, userId: st
 export async function setFinalApproverPropsForUser(userId: string, userName: string | null, propertyIds: string[]): Promise<void> {
   if (!userId) return;
   const uniq = Array.from(new Set((propertyIds || []).map(String)));
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   try {
     const { error: rpcErr } = await supabase.rpc('set_final_approver_for_user_v1', {
       p_user_id: userId,
@@ -107,7 +106,7 @@ export async function setFinalApproverPropsForEmail(email: string, userName: str
   const em = (email || '').trim();
   const uniq = Array.from(new Set((propertyIds || []).map(String)));
   if (!em) return;
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   try {
     const { error: rpcErr } = await supabase.rpc('set_final_approver_for_user_by_email_v1', {
       p_email: em,

@@ -23,15 +23,32 @@ export function clearAllAppData() {
   }
 }
 
-export function diagnoseSupabaseConnection() {
+export async function diagnoseApiConnection() {
   const issues = [];
   
-  // Check environment variables
-  const hasUrl = Boolean(import.meta.env.VITE_SUPABASE_URL);
-  const hasKey = Boolean(import.meta.env.VITE_SUPABASE_ANON_KEY);
+  // Check API URL
+  const apiUrl = import.meta.env.VITE_API_URL || '/api';
+  const hasApiUrl = Boolean(apiUrl);
   
-  if (!hasUrl) issues.push('Missing VITE_SUPABASE_URL');
-  if (!hasKey) issues.push('Missing VITE_SUPABASE_ANON_KEY');
+  if (!hasApiUrl) {
+    issues.push('API URL not configured');
+  }
+  
+  // Try to check API health
+  try {
+    const healthUrl = apiUrl.startsWith('http') ? `${apiUrl}/health` : `${window.location.origin}${apiUrl}/health`;
+    const response = await fetch(healthUrl, { method: 'GET' });
+    if (!response.ok) {
+      issues.push(`API server returned status ${response.status}`);
+    } else {
+      const data = await response.json();
+      if (data.database !== 'connected') {
+        issues.push('Database connection failed');
+      }
+    }
+  } catch (error: any) {
+    issues.push(`Cannot connect to API: ${error.message}`);
+  }
   
   // Check localStorage size
   try {
@@ -47,35 +64,34 @@ export function diagnoseSupabaseConnection() {
     healthy: issues.length === 0,
     issues,
     recommendations: issues.length > 0 
-      ? ['Clear browser cache', 'Check Supabase project status', 'Verify environment variables']
+      ? ['Clear browser cache', 'Check API server status', 'Verify environment variables', 'Ensure database is running']
       : []
   };
 }
 
-export function getSupabaseHealthStatus(): 'unknown' | 'healthy' | 'degraded' | 'down' {
-  // Check if recent errors in console
-  const recentErrors = performance.getEntriesByType('resource')
-    .filter((entry: any) => entry.name.includes('supabase.co'))
-    .slice(-10);
-  
-  if (recentErrors.length === 0) return 'unknown';
-  
-  const failedRequests = recentErrors.filter((entry: any) => 
-    entry.transferSize === 0 || entry.duration === 0
-  );
-  
-  const failureRate = failedRequests.length / recentErrors.length;
-  
-  if (failureRate === 0) return 'healthy';
-  if (failureRate < 0.5) return 'degraded';
-  return 'down';
+export async function getApiHealthStatus(): Promise<'unknown' | 'healthy' | 'degraded' | 'down'> {
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL || '/api';
+    const healthUrl = apiUrl.startsWith('http') ? `${apiUrl}/health` : `${window.location.origin}${apiUrl}/health`;
+    const response = await fetch(healthUrl, { method: 'GET' });
+    
+    if (!response.ok) return 'down';
+    
+    const data = await response.json();
+    if (data.status === 'ok' && data.database === 'connected') {
+      return 'healthy';
+    }
+    return 'degraded';
+  } catch {
+    return 'down';
+  }
 }
 
 // Add to window for debugging
 if (typeof window !== 'undefined') {
-  (window as any).supabaseDebug = {
+  (window as any).apiDebug = {
     clearAllAppData,
-    diagnoseSupabaseConnection,
-    getSupabaseHealthStatus,
+    diagnoseApiConnection,
+    getApiHealthStatus,
   };
 }

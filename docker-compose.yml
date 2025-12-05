@@ -57,7 +57,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      - VITE_API_URL=http://localhost:3001
+      - VITE_API_URL=http://sams-api:3001
     depends_on:
       - sams-api
     stdin_open: true

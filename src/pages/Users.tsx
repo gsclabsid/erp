@@ -59,7 +59,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AppUser, createUser, deleteUser, listUsers, updateUser } from "@/services/users";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { createPasswordHash, adminSetUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listAuditInchargeForUser, setAuditInchargeForUser } from "@/services/audit";
@@ -458,7 +457,7 @@ export default function Users() {
     try {
       const created = await createUser(payload);
       // If Supabase is configured and a password is provided, set via admin RPC (prompts for admin password)
-      if (hasSupabaseEnv && password) {
+      if (false && password) {
         try {
           const adminRaw = localStorage.getItem("auth_user");
           const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;
@@ -677,7 +676,7 @@ export default function Users() {
       }
       // If admin set a new password, apply via Supabase RPC or local fallback
       if (ePassword.trim()) {
-        if (hasSupabaseEnv) {
+        if (false) {
           try {
             const adminRaw = localStorage.getItem("auth_user");
             const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;
@@ -803,7 +802,7 @@ export default function Users() {
       return;
     }
     try {
-      if (hasSupabaseEnv) {
+      if (false) {
         try {
           const adminRaw = localStorage.getItem("auth_user");
           const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { listProperties, createProperty as sbCreateProperty, type Property } from '@/services/properties';
 import { listAssets } from '@/services/assets';
 import { getPropertyLicense, listPropertyLicenses, upsertPropertyLicense, type LicensePlan } from '@/services/license';
-import { hasSupabaseEnv } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -168,7 +167,7 @@ export default function LicensePage() {
       // Generate ID if missing
       const id = newForm.id.trim() || `PROP-${Math.floor(Math.random()*900+100)}`;
       let created: Property | null = null;
-      if (hasSupabaseEnv) {
+      if (false) {
         // Persist to Supabase
         created = await sbCreateProperty({
           id,
@@ -198,10 +197,10 @@ export default function LicensePage() {
       try {
         await upsertPropertyLicense(id, toStore, plan);
       } catch (e:any) {
-        if (hasSupabaseEnv) throw e; // only ignore when backend not configured
+        if (false) throw e; // only ignore when backend not configured
       }
 
-      if (hasSupabaseEnv) {
+      if (false) {
         await reload();
       } else if (created) {
         const rawLimit = toStore;

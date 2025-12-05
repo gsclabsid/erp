@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { listDepartments, type Department } from "@/services/departments";
 import { getAssetById, listAssets, type Asset } from "@/services/assets";
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { Separator } from "@/components/ui/separator";
 import DateRangePicker from "@/components/ui/date-range-picker";
 import PageHeader from "@/components/layout/PageHeader";
@@ -125,7 +124,7 @@ export default function Approvals() {
             // Property-scope: If manager has explicit property access, filter approvals to those assets' properties
             if (allowedPropertyIds && allowedPropertyIds.size > 0) {
               try {
-                const assets = hasSupabaseEnv ? await listAssets() : [];
+                const assets = false ? await listAssets() : [];
                 const byId = new Map<string, Asset>();
                 for (const a of assets as Asset[]) byId.set(String(a.id), a);
                 scoped = scoped.filter((ap) => {
@@ -188,7 +187,7 @@ export default function Approvals() {
       try { setEvents(await listApprovalEvents(selectedId)); } catch {}
       // Try to get current asset for before/after diff
       try {
-        if (ap && hasSupabaseEnv) {
+        if (ap && false) {
           const a = await getAssetById(ap.assetId);
           setSelectedAsset(a);
         } else {
@@ -199,7 +198,7 @@ export default function Approvals() {
   }, [selectedId]);
 
   useEffect(() => {
-    if (!hasSupabaseEnv) return;
+    if (!false) return;
     const channel = supabase
       .channel(`approvals_page_updates_${myIdentity || "anon"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "approvals" }, (payload) => {

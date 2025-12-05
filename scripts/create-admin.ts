@@ -2,7 +2,29 @@
 // Run with: npx tsx scripts/create-admin.ts
 
 import { getDbPool, query } from '../src/lib/db';
-import { createPasswordHash } from '../src/services/auth';
+import crypto from 'crypto';
+
+const HASH_VERSION_PREFIX = "v1$";
+
+function randomSalt(size = 16): Buffer {
+  return crypto.randomBytes(size);
+}
+
+function bufferToHex(buffer: Buffer): string {
+  return buffer.toString('hex');
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  return crypto.createHash('sha256').update(input).digest('hex');
+}
+
+async function createPasswordHash(password: string): Promise<string> {
+  if (!password) throw new Error('Password is required');
+  const salt = randomSalt();
+  const saltHex = bufferToHex(salt);
+  const digest = await sha256Hex(`${saltHex}::${password}`);
+  return `${HASH_VERSION_PREFIX}${saltHex}$${digest}`;
+}
 
 async function createAdmin() {
   const email = 'admin@sams.local';
@@ -16,9 +38,6 @@ async function createAdmin() {
     if (checkResult.rows.length > 0) {
       // Update existing admin
       const hash = await createPasswordHash(password);
-      if (!hash) {
-        throw new Error('Failed to create password hash');
-      }
       
       await query(
         `UPDATE app_users 
@@ -35,9 +54,6 @@ async function createAdmin() {
     } else {
       // Create new admin
       const hash = await createPasswordHash(password);
-      if (!hash) {
-        throw new Error('Failed to create password hash');
-      }
       
       await query(
         `INSERT INTO app_users (id, name, email, role, status, password_hash, password_changed_at)

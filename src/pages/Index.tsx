@@ -29,7 +29,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode, demoStats } from "@/lib/demo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getUserPreferences } from "@/services/userPreferences";
@@ -265,14 +264,13 @@ const Index = () => {
       } else {
         toast.success(`Imported ${res.inserted} asset${res.inserted === 1 ? '' : 's'}`);
       }
-      if (hasSupabaseEnv) {
-        try {
-          const assets = await listAssets();
-          setCounts((c) => ({ ...c, assets: assets.length }));
-          const totalQuantity = assets.reduce<number>((sum, a) => sum + (Number(a.quantity) || 0), 0);
-          setMetrics((m) => ({ ...m, totalQuantity }));
-        } catch {}
-      }
+      // Always refresh asset counts after import
+      try {
+        const assets = await listAssets();
+        setCounts((c) => ({ ...c, assets: assets.length }));
+        const totalQuantity = assets.reduce<number>((sum, a) => sum + (Number(a.quantity) || 0), 0);
+        setMetrics((m) => ({ ...m, totalQuantity }));
+      } catch {}
       setImportProgress(90);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Import failed";
@@ -850,12 +848,7 @@ const Index = () => {
       return;
     }
 
-    if (!hasSupabaseEnv) {
-      setScopedAssets([]);
-      setScopedProperties([]);
-      setLoadingUI(false);
-      return;
-    }
+    // Always load data from API
 
     (async () => {
       try {
@@ -993,9 +986,7 @@ const Index = () => {
       case "Property Report":
       case "Generate Report":
   navigate(isDemoMode() ? "/demo/reports" : "/reports");
-        if (!hasSupabaseEnv) {
-          toast.info("Reports may be limited without Supabase configured");
-        }
+        // Reports are available through the API
         break;
       case "User Management":
   navigate(isDemoMode() ? "/demo/users" : "/users");
@@ -1088,8 +1079,7 @@ const Index = () => {
             </div>
           </CardHeader>
           <CardContent className="p-4">
-            {hasSupabaseEnv ? (
-              amcWatchList.length ? (
+            {amcWatchList.length ? (
                 <div className="space-y-3">
                   {displayedAmcWatchList.map((item) => {
                     const dueLabel = (() => {
@@ -1155,15 +1145,7 @@ const Index = () => {
                     <p className="text-xs text-muted-foreground/80">No AMC renewals due in the next 60 days.</p>
                   </div>
                 </div>
-              )
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
-                <div className="rounded-full bg-muted/50 p-3">
-                  <AlertTriangle className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="text-sm">Connect Supabase to enable tracking</p>
-              </div>
-            )}
+              )}
           </CardContent>
         </Card>
 
@@ -1197,8 +1179,7 @@ const Index = () => {
             </div>
           </CardHeader>
           <CardContent className="p-4">
-            {hasSupabaseEnv ? (
-              foodExpiryList.length ? (
+            {foodExpiryList.length ? (
                 <div className="space-y-3">
                   {displayedFoodExpiryList.map((item) => {
                     const dueLabel = (() => {
@@ -1268,15 +1249,7 @@ const Index = () => {
                     <p className="text-xs text-muted-foreground/80">No food items expiring soon.</p>
                   </div>
                 </div>
-              )
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
-                <div className="rounded-full bg-emerald-100 p-3 dark:bg-emerald-900/20">
-                  <Utensils className="h-6 w-6 text-emerald-500" />
-                </div>
-                <p className="text-sm">Connect Supabase to enable tracking</p>
-              </div>
-            )}
+              )}
           </CardContent>
         </Card>
       </section>
@@ -1709,27 +1682,6 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      {!hasSupabaseEnv && (
-        <Card className="rounded-2xl border-warning/40 bg-warning/10">
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <AlertTriangle className="mt-0.5 h-6 w-6 text-warning" />
-              <div className="space-y-2">
-                <h3 className="font-semibold text-foreground">Connect to Supabase for Full Functionality</h3>
-                <p className="text-sm text-muted-foreground">
-                  This asset management system requires a backend database for user authentication, asset storage, and full functionality. Add your Supabase keys to .env.local to enable features like:
-                </p>
-                <ul className="ml-4 space-y-1 text-sm text-muted-foreground">
-                  <li>• User authentication and role-based access</li>
-                  <li>• Asset and property data storage</li>
-                  <li>• Real-time updates and audit logs</li>
-                  <li>• Report generation and data export</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

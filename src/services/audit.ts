@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { listAssets, type Asset } from "@/services/assets";
 import { playNotificationSound } from "@/lib/sound";
 
@@ -29,7 +28,7 @@ export type AuditReview = {
 };
 
 export async function isAuditActive(): Promise<boolean> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   try {
     const { data, error } = await supabase.from("audit_sessions").select("id, is_active").eq("is_active", true).limit(1);
     if (error) throw error;
@@ -38,13 +37,13 @@ export async function isAuditActive(): Promise<boolean> {
 }
 
 export async function getActiveSession(): Promise<AuditSession | null> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data } = await supabase.from("audit_sessions").select("*").eq("is_active", true).maybeSingle();
   return (data as any) || null;
 }
 
 export async function startAuditSession(freq: 1 | 3 | 6, initiated_by?: string | null, property_id?: string | null): Promise<AuditSession> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   // Try v2 with property scoping; fallback to v1 if not available
   try {
     const { data, error } = await supabase.rpc("start_audit_session_v2", { p_frequency_months: freq, p_initiated_by: initiated_by ?? null, p_property_id: property_id ?? null });
@@ -62,13 +61,13 @@ export async function startAuditSession(freq: 1 | 3 | 6, initiated_by?: string |
 export async function endAuditSession(): Promise<void> {
   const current = await getActiveSession();
   if (!current) return;
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { error } = await supabase.rpc("end_audit_session_v1", { p_session_id: current.id });
   if (error) throw error;
 }
 
 export async function getAssignment(sessionId: string, department: string): Promise<AuditAssignment> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_assignments").select("*").eq("session_id", sessionId).eq("department", department).maybeSingle();
   if (error) throw error;
   if (data) return data as any;
@@ -93,27 +92,27 @@ export async function listDepartmentAssets(department: string, propertyId?: stri
 }
 
 export async function getReviewsFor(sessionId: string, department: string): Promise<AuditReview[]> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_reviews").select("*").eq("session_id", sessionId).eq("department", department);
   if (error) throw error;
   return (data as any[]) || [];
 }
 
 export async function saveReviewsFor(sessionId: string, department: string, rows: AuditReview[]): Promise<void> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const payload = rows.map(r => ({ asset_id: r.asset_id, status: r.status, comment: r.comment ?? null }));
   const { error } = await supabase.rpc("upsert_audit_reviews_v1", { p_session_id: sessionId, p_department: department, p_rows_json: payload });
   if (error) throw error;
 }
 
 export async function submitAssignment(sessionId: string, department: string, submitted_by?: string | null): Promise<void> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { error } = await supabase.rpc("submit_audit_assignment_v1", { p_session_id: sessionId, p_department: department, p_submitted_by: submitted_by ?? null });
   if (error) throw error;
 }
 
 export async function getProgress(sessionId: string, departments: string[]): Promise<{ total: number; submitted: number; }> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_assignments").select("department,status").eq("session_id", sessionId);
   if (error) throw error;
   const norm = (s: string) => (s || '').toString().trim().toLowerCase();
@@ -132,14 +131,14 @@ export async function getProgress(sessionId: string, departments: string[]): Pro
 }
 
 export async function listAssignments(sessionId: string): Promise<AuditAssignment[]> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_assignments").select("*").eq("session_id", sessionId);
   if (error) throw error;
   return (data as any[]) || [];
 }
 
 export async function getDepartmentReviewSummary(sessionId: string): Promise<Record<string, { verified: number; missing: number; damaged: number }>> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_reviews").select("department,status").eq("session_id", sessionId);
   if (error) throw error;
   const summary: Record<string, { verified: number; missing: number; damaged: number }> = {};
@@ -154,7 +153,7 @@ export async function getDepartmentReviewSummary(sessionId: string): Promise<Rec
 }
 
 export async function listReviewsForSession(sessionId: string): Promise<AuditReview[]> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   try {
     // Try permissive v2 first (broad read for session)
     const { data: v2, error: e2 } = await supabase.rpc('get_audit_reviews_for_session_v2', { p_session_id: sessionId } as any);
@@ -196,7 +195,7 @@ function writeLocalAI(data: Record<string, { user_id: string; user_name?: string
 
 export async function getAuditIncharge(propertyId: string): Promise<AuditIncharge | null> {
   if (!propertyId) return null;
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocalAI();
     const v = map[propertyId];
     return v ? { property_id: propertyId, user_id: v.user_id, user_name: v.user_name ?? null } : null;
@@ -219,7 +218,7 @@ export async function getAuditIncharge(propertyId: string): Promise<AuditIncharg
 
 export async function setAuditIncharge(propertyId: string, userId: string, userName?: string | null): Promise<void> {
   if (!propertyId || !userId) return;
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocalAI();
     map[propertyId] = { user_id: userId, user_name: userName ?? null };
     writeLocalAI(map);
@@ -250,7 +249,7 @@ export async function setAuditIncharge(propertyId: string, userId: string, userN
 
 export async function listAuditInchargeForUser(userId: string, userEmail?: string | null): Promise<string[]> {
   if (!userId) return [];
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocalAI();
     return Object.entries(map).filter(([, v]) => String(v.user_id) === String(userId)).map(([pid]) => String(pid));
   }
@@ -307,7 +306,7 @@ export async function listAuditInchargeForUser(userId: string, userEmail?: strin
 export async function setAuditInchargeForUser(userId: string, userName: string | null, propertyIds: string[]): Promise<void> {
   if (!userId) return;
   const uniq = Array.from(new Set((propertyIds || []).map(String)));
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocalAI();
     // Remove prior assignments for this user not in list
     Object.keys(map).forEach((pid) => {
@@ -361,28 +360,28 @@ export async function setAuditInchargeForUser(userId: string, userName: string |
 }
 
 export async function createAuditReport(sessionId: string, generated_by?: string | null): Promise<AuditReport> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.rpc("create_audit_report_v1", { p_session_id: sessionId, p_generated_by: generated_by ?? null });
   if (error) throw error;
   return data as any;
 }
 
 export async function listAuditReports(sessionId: string): Promise<AuditReport[]> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_reports").select("*").eq("session_id", sessionId).order("generated_at", { ascending: false });
   if (error) throw error;
   return (data as any[]) || [];
 }
 
 export async function getAuditReport(id: string): Promise<AuditReport | null> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_reports").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as any) || null;
 }
 
 export async function listRecentAuditReports(limit: number = 20): Promise<AuditReport[]> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase
     .from("audit_reports")
     .select("*")
@@ -393,7 +392,7 @@ export async function listRecentAuditReports(limit: number = 20): Promise<AuditR
 }
 
 export async function listSessions(limit: number = 200): Promise<AuditSession[]> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase
     .from("audit_sessions")
     .select("*")
@@ -405,7 +404,7 @@ export async function listSessions(limit: number = 200): Promise<AuditSession[]>
 }
 
 export async function getSessionById(id: string): Promise<AuditSession | null> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_sessions").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as any) || null;

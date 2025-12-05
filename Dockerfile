@@ -27,7 +27,7 @@ COPY package*.json ./
 COPY bun.lockb* ./
 
 # Install dependencies (including dev dependencies for dev server)
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .

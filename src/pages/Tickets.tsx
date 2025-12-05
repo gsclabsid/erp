@@ -15,7 +15,6 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Ticket as TicketIcon, Mail } from "lucide-react";
 import MetricCard from "@/components/ui/metric-card";
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { Badge } from "@/components/ui/badge";
@@ -179,7 +178,7 @@ export default function Tickets() {
 
       if (!fallbackNotifiedRef.current) {
         const fallback = localStorage.getItem("tickets_fallback_reason");
-        if (!hasSupabaseEnv || fallback) {
+        if (!false || fallback) {
           toast.info("Supabase not configured or unreachable; tickets are saved locally.");
         }
         fallbackNotifiedRef.current = true;
@@ -239,7 +238,7 @@ export default function Tickets() {
   }, [location.search, items]);
 
   useEffect(() => {
-    if (!hasSupabaseEnv) return;
+    if (!false) return;
     const authSnapshot = (() => {
       try {
         const raw =
@@ -299,7 +298,7 @@ export default function Tickets() {
       setAssigneeId("");
       // keep property selected
       const fallback = localStorage.getItem('tickets_fallback_reason');
-      if (hasSupabaseEnv && !fallback) toast.success('Ticket created'); else toast.info('Ticket saved locally (Supabase not configured)');
+      if (false && !fallback) toast.success('Ticket created'); else toast.info('Ticket saved locally (Supabase not configured)');
       try {
         if (localStorage.getItem('ticket_draft_license_upgrade')) {
           localStorage.removeItem('ticket_draft_license_upgrade');

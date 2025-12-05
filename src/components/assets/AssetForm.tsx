@@ -14,7 +14,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DatePicker } from "@/components/ui/date-picker";
 import { CalendarIcon, Package, Save, ClipboardList, MapPin, Info, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listProperties, type Property } from "@/services/properties";
 import { getAccessiblePropertyIdsForCurrentUser } from '@/services/userAccess';
 import { getLicenseSnapshot, type LicenseSnapshot } from '@/services/license';
@@ -61,7 +60,7 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
     (async () => {
       try {
         // Properties from Supabase (or fallback handled in page state)
-        if (hasSupabaseEnv) {
+        if (false) {
           let props = await listProperties();
           // Filter by access for non-admin users
           try {
@@ -113,7 +112,7 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
         const cu = raw ? JSON.parse(raw) : null;
         setCurrentUser(cu);
         // Load allowed departments for current user (self), when backend present
-        if (hasSupabaseEnv && cu?.id) {
+        if (false && cu?.id) {
           try {
             const depts = await listUserDepartmentAccess(cu.id);
             setAllowedDeptNames(Array.isArray(depts) ? depts : []);

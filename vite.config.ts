@@ -9,8 +9,19 @@ export default defineConfig(({ mode }) => ({
     port: 8000,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:3001',
+        // In Docker, use container name; locally use localhost
+        target: process.env.VITE_API_URL || 'http://sams-api:3001',
         changeOrigin: true,
+        secure: false,
+        rewrite: (path) => {
+          // Health endpoint is at /health, not /api/health
+          // Other endpoints are at /api/*
+          if (path === '/api/health') {
+            return '/health';
+          }
+          // Keep /api prefix for other routes
+          return path;
+        },
       },
     },
   },
@@ -20,6 +31,9 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    exclude: ['@supabase/supabase-js'],
+  },
   build: {
     rollupOptions: {
       output: {
@@ -28,6 +42,10 @@ export default defineConfig(({ mode }) => ({
           charts: ["recharts"],
           lucide: ["lucide-react"],
         },
+      },
+      external: (id) => {
+        // Ignore Supabase package during build
+        return id === '@supabase/supabase-js' || id.startsWith('@supabase/');
       },
     },
   },

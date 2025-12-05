@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 
 export type SystemSettings = {
   id: boolean; // singleton true
@@ -27,7 +26,7 @@ const SYS_TABLE = "system_settings";
 const USER_TABLE = "user_settings";
 
 export async function getSystemSettings(): Promise<SystemSettings> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(SYS_TABLE).select("*").maybeSingle();
   if (error) throw error;
   if (data) return data as SystemSettings;
@@ -39,7 +38,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
 }
 
 export async function updateSystemSettings(patch: Partial<SystemSettings>): Promise<SystemSettings> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const upsert = { id: true, ...patch } as any;
   const { data, error } = await supabase.from(SYS_TABLE).upsert(upsert, { onConflict: "id" }).select().single();
   if (error) throw error;
@@ -47,7 +46,7 @@ export async function updateSystemSettings(patch: Partial<SystemSettings>): Prom
 }
 
 export async function getUserSettings(userId: string): Promise<UserSettings> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(USER_TABLE).select("*").eq("user_id", userId).maybeSingle();
   if (error) throw error;
   if (data) return data as UserSettings;
@@ -58,7 +57,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
 }
 
 export async function upsertUserSettings(userId: string, patch: Partial<UserSettings>): Promise<UserSettings> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const row = { user_id: userId, ...patch } as any;
   const { data, error } = await supabase.from(USER_TABLE).upsert(row, { onConflict: "user_id" }).select().single();
   if (error) throw error;

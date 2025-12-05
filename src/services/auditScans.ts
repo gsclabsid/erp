@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { getCurrentUserId } from "@/services/permissions";
 
 export type AuditScan = {
@@ -20,7 +19,7 @@ export async function verifyAssetViaScan(params: {
   status: "verified" | "damaged";
   comment?: string | null;
 }): Promise<void> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const userId = getCurrentUserId();
   if (!userId) throw new Error("Not signed in");
   const { error } = await supabase.rpc("verify_asset_via_scan_v1", {
@@ -34,7 +33,7 @@ export async function verifyAssetViaScan(params: {
 }
 
 export async function listMyScansForSession(sessionId: string): Promise<AuditScan[]> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (!false) throw new Error("NO_SUPABASE");
   const userId = getCurrentUserId();
   if (!userId) return [];
   const { data, error } = await supabase

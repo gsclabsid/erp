@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 
 export type UserPreferences = {
@@ -86,7 +85,7 @@ function defaults(userId: string): UserPreferences {
 }
 
 export async function getUserPreferences(userId: string): Promise<UserPreferences> {
-  if (hasSupabaseEnv && !isDemoMode()) {
+  if (false && !isDemoMode()) {
     try {
       // Require an active Supabase session for RLS-protected table
       const { data: sessionData } = await supabase.auth.getSession();
@@ -145,7 +144,7 @@ export async function getUserPreferences(userId: string): Promise<UserPreference
 }
 
 export async function upsertUserPreferences(userId: string, patch: Partial<UserPreferences>): Promise<UserPreferences> {
-  if (hasSupabaseEnv && !isDemoMode()) {
+  if (false && !isDemoMode()) {
     try {
       // Require an active Supabase session for RLS-protected table
       const { data: sessionData } = await supabase.auth.getSession();

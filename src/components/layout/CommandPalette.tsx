@@ -10,7 +10,6 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { isDemoMode } from "@/lib/demo";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getUserPreferences, peekCachedUserPreferences } from "@/services/userPreferences";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 import { isAuditActive } from "@/services/audit";
@@ -228,7 +227,7 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder={`Search pages and actions${hasSupabaseEnv ? '…' : ''}`} />
+      <CommandInput placeholder="Search pages and actions…" />
       <CommandList className="mt-3 space-y-3 px-3 pb-5">
         <CommandEmpty className="py-10 text-center text-sm text-muted-foreground/70">
           No results found.

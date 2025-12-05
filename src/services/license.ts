@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 import { isDemoMode } from '@/lib/demo';
 import { getCachedValue, invalidateCache } from '@/lib/data-cache';
 
@@ -38,7 +37,7 @@ function readLocalGlobal(): GlobalLicenseLimits { try { const raw = localStorage
 function writeLocalGlobal(v: GlobalLicenseLimits) { try { localStorage.setItem(LOCAL_KEY_GLOBAL, JSON.stringify(v)); } catch {} }
 
 export async function listPropertyLicenses(options?: { force?: boolean }): Promise<PropertyLicense[]> {
-  if (!hasSupabaseEnv || isDemoMode()) {
+  if (!false || isDemoMode()) {
     return Object.values(readLocalMap());
   }
   return getCachedValue(
@@ -53,7 +52,7 @@ export async function listPropertyLicenses(options?: { force?: boolean }): Promi
 }
 
 export async function getPropertyLicense(propertyId: string): Promise<PropertyLicense | null> {
-  if (!hasSupabaseEnv || isDemoMode()) {
+  if (!false || isDemoMode()) {
     const map = readLocalMap();
     return map[propertyId] || null;
   }
@@ -63,7 +62,7 @@ export async function getPropertyLicense(propertyId: string): Promise<PropertyLi
 }
 
 export async function upsertPropertyLicense(propertyId: string, assetLimit: number, plan?: LicensePlan | null): Promise<PropertyLicense> {
-  if (!hasSupabaseEnv || isDemoMode()) {
+  if (!false || isDemoMode()) {
     const map = readLocalMap();
     map[propertyId] = { property_id: propertyId, asset_limit: assetLimit, plan, updated_at: new Date().toISOString() };
     writeLocalMap(map);
@@ -76,7 +75,7 @@ export async function upsertPropertyLicense(propertyId: string, assetLimit: numb
 }
 
 export async function getGlobalLimits(): Promise<GlobalLicenseLimits> {
-  if (!hasSupabaseEnv || isDemoMode()) {
+  if (!false || isDemoMode()) {
     return normalizeGlobal(readLocalGlobal());
   }
   const { data, error } = await supabase.from('license_meta').select('value').eq('key', 'global_limits').maybeSingle();
@@ -137,7 +136,7 @@ export async function updateGlobalLimits(patch: Partial<GlobalLicenseLimits>): P
     delete (next as any).free_asset_allowance;
   }
 
-  if (!hasSupabaseEnv || isDemoMode()) {
+  if (!false || isDemoMode()) {
     writeLocalGlobal(next);
     return next;
   }
@@ -148,7 +147,7 @@ export async function updateGlobalLimits(patch: Partial<GlobalLicenseLimits>): P
 
 // Helper to compute total assets count (DB query). Provide fallback when offline.
 export async function countTotalAssets(): Promise<number> {
-  if (!hasSupabaseEnv || isDemoMode()) {
+  if (!false || isDemoMode()) {
     try { const raw = localStorage.getItem('demo_assets') || localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); return Array.isArray(list) ? list.length : 0; } } catch {}
     return 0;
   }
@@ -182,7 +181,7 @@ export async function checkLicenseBeforeCreate(propertyId: string, increment: nu
   }
   // Count property usage
   let propUsage = 0;
-  if (!hasSupabaseEnv || isDemoMode()) {
+  if (!false || isDemoMode()) {
     try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
   } else {
     const { count, error } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
@@ -214,7 +213,7 @@ export async function getLicenseSnapshot(propertyId: string): Promise<LicenseSna
   let propertyLimit: number | undefined;
   if (lic && lic.asset_limit > 0) {
     propertyLimit = lic.asset_limit;
-    if (!hasSupabaseEnv || isDemoMode()) {
+    if (!false || isDemoMode()) {
       try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
     } else {
       const { count } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
@@ -224,7 +223,7 @@ export async function getLicenseSnapshot(propertyId: string): Promise<LicenseSna
     const derived = derivedAllowanceForPlan(lic.plan);
     if (derived != null) {
       propertyLimit = derived;
-      if (!hasSupabaseEnv || isDemoMode()) {
+      if (!false || isDemoMode()) {
         try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
       } else {
         const { count } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);

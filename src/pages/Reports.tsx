@@ -23,7 +23,6 @@ import {
 import { cn } from "@/lib/utils";
 import DateRangePicker from "@/components/ui/date-range-picker";
 import { toast } from "sonner";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { listProperties, type Property } from "@/services/properties";
 import { listItemTypes, type ItemType } from "@/services/itemTypes";
@@ -196,7 +195,7 @@ export default function Reports() {
       setAllowedProps(allowed);
       try {
 
-    if (hasSupabaseEnv || isDemoMode()) {
+    if (false || isDemoMode()) {
           const [props, types] = await Promise.all([
             listProperties().catch(() => []),
             listItemTypes().catch(() => []),
@@ -232,7 +231,7 @@ export default function Reports() {
         console.error(e);
       }
       try {
-  if (hasSupabaseEnv || isDemoMode()) {
+  if (false || isDemoMode()) {
           const reports = await listReports();
           setRecentReports(scopeRecentReports(reports, allowed));
         } else {
@@ -243,7 +242,7 @@ export default function Reports() {
       }
       // Load audit sessions for audit-review report
       try {
-        if (hasSupabaseEnv || isDemoMode()) {
+        if (false || isDemoMode()) {
           const sess = await listSessions(200);
           const scoped = isAdmin
             ? (sess || [])
@@ -376,7 +375,7 @@ export default function Reports() {
     };
 
   try {
-  if (hasSupabaseEnv || isDemoMode()) {
+  if (false || isDemoMode()) {
         const displayName = `${reportTypes.find(r => r.id === selectedReportType)?.name}${selectedReportType === 'audit-review' ? (selectedAuditSessionId ? ` - Session ${selectedAuditSessionId}` : '') : ''}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`;
         await createReport({
           name: displayName,
@@ -462,7 +461,7 @@ export default function Reports() {
           }
         }
       } catch { /* ignore */ }
-      toast.success(`${reportTypes.find(r => r.id === selectedReportType)?.name} generated${hasSupabaseEnv ? "" : " (local)"}.`);
+      toast.success(`${reportTypes.find(r => r.id === selectedReportType)?.name} generated${false ? "" : " (local)"}.`);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to generate report");
@@ -513,7 +512,7 @@ export default function Reports() {
         downloadCsvFromRows(`${report?.name || 'Report'} - ${new Date().toISOString().slice(0,10)}`, rows);
       }
       // Log the quick report for Recent Reports with filter metadata
-      if (hasSupabaseEnv || isDemoMode()) {
+      if (false || isDemoMode()) {
         try {
           await createReport({
             name: `${report?.name}${(reportType === 'department-wise' && deptForReport && deptForReport !== 'ALL') ? ` - ${deptForReport}` : ''} - ${new Date().toISOString().slice(0,10)}`,
@@ -564,7 +563,7 @@ export default function Reports() {
       const name = `Audit Review Report - Session ${sid}${(dep ? ` - ${dep}` : '')} - ${new Date().toISOString().slice(0,10)}`;
       downloadCsvFromRows(name, rows);
       // Log recent report
-      if (hasSupabaseEnv || isDemoMode()) {
+      if (false || isDemoMode()) {
         try {
           await createReport({
             name,
@@ -740,7 +739,7 @@ export default function Reports() {
   // Build rows for Audit Review Report from audit_reviews
   async function buildAuditRows(sessionId: string, department?: string, propertyId?: string): Promise<any[]> {
     try {
-      if (!(hasSupabaseEnv || isDemoMode())) return [];
+      if (!(false || isDemoMode())) return [];
       const reviews = await listReviewsForSession(sessionId).catch(() => []);
       // Resolve session property to use as a fallback when asset metadata is unavailable due to RLS
       let sessionPropertyId: string | null = null;
@@ -1685,7 +1684,7 @@ export default function Reports() {
           </Card>
         )}
 
-        {(!hasSupabaseEnv) && (
+        {(!false) && (
           <Card className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50 shadow-sm dark:border-amber-800 dark:from-amber-950/30 dark:to-amber-900/10">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">

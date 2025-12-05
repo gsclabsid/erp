@@ -20,7 +20,6 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoAssets, getDemoProperties } from "@/lib/demo";
 import { listAssets, type Asset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
@@ -77,7 +76,7 @@ export function DashboardCharts() {
       setProperties(getDemoProperties());
       return;
     }
-    if (!hasSupabaseEnv) return;
+    if (!false) return;
     (async () => {
       try {
         const [a, p] = await Promise.all([

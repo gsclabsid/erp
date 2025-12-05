@@ -278,10 +278,11 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
     invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
     return payload;
   }
-  try {
-    const created = await api.post<Ticket>('/tickets', toSnake(payload));
-    // Clear fallback flag now that core insert worked
-    try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
+  if (!isDemoMode()) {
+    try {
+      const created = await api.post<Ticket>('/tickets', toSnake(payload));
+      // Clear fallback flag now that core insert worked
+      try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
       // Log an event (best-effort)
       try {
         await api.post('/ticket-events', { ticket_id: created.id, event_type: 'created', author: input.createdBy, message: created.title });
@@ -326,18 +327,19 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
     } catch (e) {
       try { localStorage.setItem('tickets_fallback_reason', 'insert_failed'); } catch {}
       console.warn("tickets insert failed, using localStorage", e);
+      // Fallback to localStorage
+      const list = loadLocal();
+      saveLocal([payload, ...list]);
+      const events = loadLocalEvents();
+      const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: payload.id, eventType: 'created', author: input.createdBy, message: payload.title, createdAt: new Date().toISOString() };
+      saveLocalEvents([ev, ...events]);
+      await addRoleNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` }, payload.targetRole);
+      invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
+      return payload;
     }
   }
-  const list = loadLocal();
-  // Local: persist ticket and an event
-  saveLocal([payload, ...list]);
-  const events = loadLocalEvents();
-  const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: payload.id, eventType: 'created', author: input.createdBy, message: payload.title, createdAt: new Date().toISOString() };
-  saveLocalEvents([ev, ...events]);
-  // Notify
-  await addRoleNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` }, payload.targetRole);
-  invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
-  return payload;
+  // This should never be reached, but TypeScript needs it
+  throw new Error("Unexpected state in createTicket");
 }
 
 export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { message?: string }): Promise<Ticket | null> {
@@ -496,13 +498,13 @@ function toCamel(row: any): Ticket {
   return {
     id: row.id,
     title: row.title,
-  description: row.description,
-  targetRole: row.target_role,
+    description: row.description,
+    targetRole: row.target_role,
     status: row.status,
     assignee: row.assignee ?? null,
     priority: row.priority ?? "medium",
     slaDueAt: row.sla_due_at ?? null,
-  closeNote: row.close_note ?? null,
+    closeNote: row.close_note ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? null,
@@ -521,7 +523,7 @@ function toSnake(input: Partial<Ticket>) {
     // assignee will be set below via hasOwnProperty check
     priority: input.priority ?? undefined,
     sla_due_at: input.slaDueAt ?? null,
-  close_note: input.closeNote,
+    close_note: input.closeNote,
     created_by: input.createdBy,
     created_at: input.createdAt,
     updated_at: input.updatedAt,

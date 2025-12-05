@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
 import { Calendar, MapPin, Package, Building2, ShieldCheck, AlertCircle, Copy, ScanLine, ArrowLeft, ClipboardList, Factory, AlertTriangle, Edit } from "lucide-react";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getAssetById, type Asset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
 import { toast } from "sonner";
@@ -14,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 export default function AssetDetails() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
-  const isSupabase = hasSupabaseEnv;
+  const isSupabase = false;
   const [asset, setAsset] = useState<Asset | null>(null);
   const [propsById, setPropsById] = useState<Record<string, Property>>({});
   const qrPayload = useMemo(() => {
@@ -133,7 +132,7 @@ export default function AssetDetails() {
                       <Badge variant="outline" className="bg-background/50 text-xs font-medium">
                         {asset.type || 'Unknown type'}
                       </Badge>
-                      {hasSupabaseEnv ? (
+                      {false ? (
                         <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800">
                           <ShieldCheck className="mr-1 h-3 w-3" /> Verified
                         </Badge>

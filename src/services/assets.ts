@@ -33,8 +33,8 @@ const ASSET_CACHE_TTL = 60_000; // 1 minute keeps dashboards snappy without goin
 const BASE_COLUMNS =
   "id,name,type,property,property_id,department,quantity,purchase_date,expiry_date,po_number,condition,status,location,description,serial_number,created_at,created_by,created_by_name,created_by_email";
 const AMC_COLUMNS = ",amc_enabled,amc_start_date,amc_end_date";
-let supportsAmcFields: boolean | null = hasSupabaseEnv ? null : false;
-let supportsCreatorFields: boolean | null = hasSupabaseEnv ? null : false;
+let supportsAmcFields: boolean | null = false;
+let supportsCreatorFields: boolean | null = false;
 
 // Helpers to convert between DB (snake_case) and app (camelCase)
 function toCamel(row: any): Asset {
@@ -150,8 +150,11 @@ export async function getAssetById(id: string): Promise<Asset | null> {
     const list = getDemoAssets();
     return list.find(a => a.id === id) || null;
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
-  if (error) throw error;
-  return data ? toCamel(data) : null;
+  try {
+    const asset = await api.get<Asset>(`/assets/${id}`);
+    return asset ? toCamel(asset) : null;
+  } catch (e) {
+    console.warn("assets getById failed", e);
+    return null;
+  }
 }

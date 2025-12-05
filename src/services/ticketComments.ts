@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 
 export type TicketComment = {
@@ -18,7 +17,7 @@ function saveDemo(list: TicketComment[]) {
 }
 
 export async function listTicketComments(ticketId: string): Promise<TicketComment[]> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { data, error } = await supabase
         .from('ticket_events')
@@ -53,7 +52,7 @@ export async function addTicketComment(ticketId: string, message: string, author
     message,
     createdAt: new Date().toISOString(),
   };
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { data, error } = await supabase
         .from('ticket_events')

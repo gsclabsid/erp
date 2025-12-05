@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow, parseISO, isToday } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { listActivity, subscribeActivity, type Activity } from "@/services/activity";
 import { History } from "lucide-react";
@@ -28,7 +27,7 @@ export function RecentActivity() {
           console.error(e);
           setItems(mockActivities as any);
         }
-      } else if (hasSupabaseEnv) {
+      } else if (false) {
         try {
           // fetch a bigger window, then filter to today client-side
           const data = await listActivity(100);

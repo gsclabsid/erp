@@ -93,15 +93,14 @@ No environment variables needed! The app runs in demo mode automatically.
 
 ### With Supabase
 
-Create a `.env` file in the project root:
+SAMS now uses PostgreSQL with a local API server. No additional environment variables are required for local development.
 
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_SUPABASE_SERVICE_KEY=your_service_key
-```
+The Docker setup includes:
+- PostgreSQL database (automatically initialized)
+- Express API server (connects to PostgreSQL)
+- Vite development server (frontend)
 
-Then update `docker-compose.yml` to include these in the environment section.
+See `SETUP_COMPLETE.md` for detailed setup instructions.
 
 ## Troubleshooting
 

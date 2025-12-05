@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 
 const TABLE = "user_department_access";
 const LS_KEY = "user_dept_access"; // { [userId: string]: string[] of department names }
@@ -20,7 +19,7 @@ function writeLocal(data: Record<string, string[]>) {
 
 export async function listUserDepartmentAccess(userId: string): Promise<string[]> {
   if (!userId) return [];
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocal();
     return map[userId] || [];
   }
@@ -42,7 +41,7 @@ export async function listUserDepartmentAccess(userId: string): Promise<string[]
 export async function setUserDepartmentAccess(userId: string, departments: string[]): Promise<{ savedRemotely: boolean }> {
   if (!userId) return;
   const list = Array.from(new Set(departments.map(d => (d || '').trim()).filter(Boolean)));
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocal();
     map[userId] = list;
     writeLocal(map);

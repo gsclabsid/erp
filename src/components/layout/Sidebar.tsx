@@ -39,7 +39,6 @@ import { listAssets, type Asset } from "@/services/assets";
 import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 import { getUserPreferences, peekCachedUserPreferences, upsertUserPreferences } from "@/services/userPreferences";
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { playNotificationSound } from "@/lib/sound";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 
@@ -476,7 +475,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   }, [location.pathname, loadPendingApprovals]);
 
   useEffect(() => {
-    if (!hasSupabaseEnv) return;
+    if (!false) return;
     const roleValue = (role || "").toLowerCase();
     if (roleValue !== "admin" && roleValue !== "manager") return;
     const deptLower = (userDept || "").toLowerCase();

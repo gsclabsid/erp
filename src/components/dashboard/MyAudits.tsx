@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck } from "lucide-react";
 import { isDemoMode } from "@/lib/demo";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listSessions, getSessionById, isAuditActive, getProgress, formatAuditSessionName } from "@/services/audit";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 

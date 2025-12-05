@@ -206,17 +206,19 @@ export async function loginWithPassword(email: string, password: string): Promis
 
   try {
     // Try API first
-    const userData = await api.post<{ password_hash?: string } & MinimalUser>('/auth/login', {
+    const userData = await api.post<{ passwordHash?: string; password_hash?: string } & MinimalUser>('/auth/login', {
       email: normalized,
       password, // API will verify, but we also verify client-side for security
     });
 
-    if (!userData || !userData.password_hash) {
+    // API returns camelCase (passwordHash), but also check snake_case for compatibility
+    const passwordHash = userData?.passwordHash || (userData as any)?.password_hash;
+    if (!userData || !passwordHash) {
       return null;
     }
 
     // Verify password hash client-side
-    const outcome = await hashesMatch(password, userData.password_hash);
+    const outcome = await hashesMatch(password, passwordHash);
     if (outcome === "nomatch") {
       return null;
     }

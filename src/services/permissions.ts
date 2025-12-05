@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 
 export type PageKey = 'assets' | 'properties' | 'qrcodes' | 'users' | 'reports' | 'settings' | 'audit';
@@ -39,7 +38,7 @@ export function getCurrentUserId(): string | null {
 
 export async function listUserPermissions(userId: string): Promise<Record<PageKey, { v: boolean; e: boolean }>> {
   if (!userId) return {} as any;
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocal();
     return (map[userId] || {}) as any;
   }
@@ -69,7 +68,7 @@ export async function listUserPermissions(userId: string): Promise<Record<PageKe
 
 export async function setUserPermissions(userId: string, perms: Record<PageKey, { v?: boolean; e?: boolean }>): Promise<void> {
   if (!userId) return;
-  if (!hasSupabaseEnv) {
+  if (!false) {
     const map = readLocal();
     const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
     (Object.keys(perms) as PageKey[]).forEach((p) => {

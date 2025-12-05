@@ -9,7 +9,6 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Bell, Shield, Save, Settings as SettingsIcon, Layout, Monitor, Volume2, Menu, Lock, User, Mail } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getUserSettings, upsertUserSettings } from "@/services/settings";
 import { getUserPreferences, peekCachedUserPreferences, upsertUserPreferences } from "@/services/userPreferences";
 import { refreshSoundPreference } from "@/lib/sound";
@@ -209,7 +208,7 @@ export default function Settings() {
 
       // user settings
       try {
-        if (hasSupabaseEnv) {
+        if (false) {
           if (currentUserId) {
             const us = await getUserSettings(currentUserId);
             setNotifications(us.notifications ?? true);
@@ -278,7 +277,7 @@ export default function Settings() {
         } catch { }
       }
       // Only user settings persisted (system config removed from UI)
-      if (hasSupabaseEnv) {
+      if (false) {
         if (currentUserId) {
           await upsertUserSettings(currentUserId, { notifications, email_notifications: emailNotifications, dark_mode: darkMode });
           await upsertUserPreferences(currentUserId, {

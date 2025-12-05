@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { listNotifications, addNotification, markAllRead, clearAllNotifications, type Notification } from "@/services/notifications";
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import CommandPalette from "@/components/layout/CommandPalette";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";

@@ -25,7 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { listProperties, deleteProperty as sbDeleteProperty, createProperty as sbCreateProperty, updateProperty as sbUpdateProperty, type Property } from "@/services/properties";
 import { listAssets, type Asset } from "@/services/assets";
 import { listPropertyLicenses } from '@/services/license';
@@ -92,7 +91,7 @@ const mockProperties = [
 
 export default function Properties() {
   const [properties, setProperties] = useState<any[]>(mockProperties);
-  const isSupabase = hasSupabaseEnv;
+  const isSupabase = false;
   const [role, setRole] = useState<string>("");
   const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
   // UI state: filters and search

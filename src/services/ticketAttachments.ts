@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 
 export type TicketAttachment = {
@@ -21,7 +20,7 @@ async function ensureBucket(): Promise<void> {
 }
 
 export async function listAttachments(ticketId: string): Promise<TicketAttachment[]> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       await ensureBucket();
       const prefix = `${ticketId}/`;
@@ -47,7 +46,7 @@ export async function listAttachments(ticketId: string): Promise<TicketAttachmen
 export async function uploadAttachment(ticketId: string, file: File): Promise<TicketAttachment> {
   const actor = (() => { try { const raw = (isDemoMode()? (sessionStorage.getItem('demo_auth_user')||localStorage.getItem('demo_auth_user')):null)||localStorage.getItem('auth_user'); const u = raw? JSON.parse(raw): null; return (u?.email||u?.id||'user') as string; } catch { return 'user'; } })();
   const name = `${Date.now()}_${file.name}`;
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       await ensureBucket();
       const path = `${ticketId}/${name}`;
@@ -67,7 +66,7 @@ export async function uploadAttachment(ticketId: string, file: File): Promise<Ti
 }
 
 export async function removeAttachment(attachmentId: string): Promise<void> {
-  if (!isDemoMode() && hasSupabaseEnv) {
+  if (!isDemoMode() && false) {
     try {
       const { error } = await supabase.storage.from(BUCKET).remove([attachmentId]);
       if (error) throw error;

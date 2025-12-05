@@ -1,4 +1,3 @@
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { updateAsset } from "@/services/assets";
 import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
@@ -82,7 +81,7 @@ function saveLocalEvents(list: ApprovalEvent[]) {
 
 export async function resyncApprovalDepartments(): Promise<{ updated: number; total: number; errors: number; }> {
   // Get approvals and users; update approvals.department to match requester’s current department
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
       const [{ data: approvals, error: aErr }, { data: users, error: uErr }] = await Promise.all([
         supabase.from(TABLE).select("id, requested_by, department"),
@@ -145,7 +144,7 @@ export async function listApprovals(
   assetIds?: string[] | null,
   options?: { force?: boolean }
 ): Promise<ApprovalRequest[]> {
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
       const cacheKey = makeApprovalCacheKey(status, department, requestedBy, assetIds);
       return await getCachedValue(
@@ -212,7 +211,7 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
     : ((input.department ?? dept) as any ?? null);
   let finalDept = normalizedDept;
   // If still null and Supabase is available, try to look up from app_users by email or id
-  if (!finalDept && hasSupabaseEnv) {
+  if (!finalDept && false) {
     try {
       const key = (input.requestedBy || '').toLowerCase();
       let q = supabase.from('app_users').select('department').limit(1);
@@ -235,7 +234,7 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
     patch: input.patch ?? null,
   department: finalDept,
   };
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
   const { data, error } = await supabase.from(TABLE).insert(toSnake(payload)).select("*").single();
       if (error) throw error;
@@ -284,7 +283,7 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
 
 export async function forwardApprovalToAdmin(id: string, manager: string, notes?: string): Promise<ApprovalRequest | null> {
   const patch = { status: 'pending_admin' as ApprovalStatus, reviewedBy: manager, reviewedAt: new Date().toISOString(), notes: notes ?? null };
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
       const { data, error } = await supabase.from(TABLE).update(toSnake(patch)).eq("id", id).select("*").single();
       if (error) throw error;
@@ -339,7 +338,7 @@ export async function forwardApprovalToAdmin(id: string, manager: string, notes?
 
 export async function decideApprovalFinal(id: string, decision: Exclude<ApprovalStatus, "pending_manager" | "pending_admin">, admin: string, notes?: string): Promise<ApprovalRequest | null> {
   const patch = { status: decision, reviewedBy: admin, reviewedAt: new Date().toISOString(), notes: notes ?? null };
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
       const { data, error } = await supabase.from(TABLE).update(toSnake(patch)).eq("id", id).select("*").single();
       if (error) throw error;
@@ -425,7 +424,7 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
 export async function adminOverrideApprove(id: string, admin: string, notes?: string): Promise<ApprovalRequest | null> {
   const msg = notes && notes.trim().length ? notes : "admin approved it without level 1 approval";
   const res = await decideApprovalFinal(id, 'approved', admin, msg);
-  if (res && hasSupabaseEnv) {
+  if (res && false) {
     try {
       await supabase.from('approval_events').insert({
         approval_id: id,
@@ -440,7 +439,7 @@ export async function adminOverrideApprove(id: string, admin: string, notes?: st
 
 export async function updateApprovalPatch(id: string, manager: string, patchData: Record<string, any>): Promise<ApprovalRequest | null> {
   const patch = { patch: patchData } as Partial<ApprovalRequest>;
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
       const { data, error } = await supabase.from(TABLE).update(toSnake(patch)).eq('id', id).select('*').single();
       if (error) throw error;
@@ -466,7 +465,7 @@ export async function updateApprovalPatch(id: string, manager: string, patchData
 }
 
 export async function listApprovalEvents(approvalId: string): Promise<ApprovalEvent[]> {
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
       const { data, error } = await supabase
         .from('approval_events')
@@ -497,7 +496,7 @@ export async function listApprovalEvents(approvalId: string): Promise<ApprovalEv
 export async function addApprovalComment(approvalId: string, author: string, field: string, message: string): Promise<void> {
   const msg = `${field}: ${message}`;
   // Try remote first when available
-  if (hasSupabaseEnv) {
+  if (false) {
     try {
       // Prefer SECURITY DEFINER RPC if present (handles missing parent row and RLS)
       try {
