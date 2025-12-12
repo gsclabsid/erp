@@ -133,7 +133,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     } catch { setAuthUser(null); }
   }, []);
 
-  // Notifications: load from service (Supabase or localStorage). In demo, seed fake ones each load.
+  // Notifications: load from service (localStorage). In demo, seed fake ones each load.
   useEffect(() => {
     (async () => {
       try {

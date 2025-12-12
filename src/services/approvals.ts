@@ -1,6 +1,7 @@
 import { isDemoMode } from "@/lib/demo";
 import { updateAsset } from "@/services/assets";
 import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
+import { api } from "@/lib/api";
 import {
   sendApprovalSubmittedEmail,
   sendApprovalForwardedEmail,
@@ -80,36 +81,7 @@ function saveLocalEvents(list: ApprovalEvent[]) {
 }
 
 export async function resyncApprovalDepartments(): Promise<{ updated: number; total: number; errors: number; }> {
-  // Get approvals and users; update approvals.department to match requester’s current department
-  if (false) {
-    try {
-      const [{ data: approvals, error: aErr }, { data: users, error: uErr }] = await Promise.all([
-        supabase.from(TABLE).select("id, requested_by, department"),
-        supabase.from("app_users").select("id, email, department")
-      ]);
-      if (aErr) throw aErr; if (uErr) throw uErr;
-      const byEmail = new Map<string, string | null>();
-      const byId = new Map<string, string | null>();
-      for (const u of users || []) {
-        if (u?.email) byEmail.set(String(u.email).toLowerCase(), u.department ?? null);
-        if (u?.id) byId.set(String(u.id), u.department ?? null);
-      }
-      let updated = 0; let errors = 0;
-      for (const a of approvals || []) {
-        const key = (a.requested_by || '').toLowerCase();
-        const target = byEmail.get(key) ?? byId.get(a.requested_by || '') ?? null;
-        if (typeof target !== 'undefined' && a.department !== target) {
-          try {
-            const { error } = await supabase.from(TABLE).update({ department: target }).eq('id', a.id);
-            if (error) throw error; updated++;
-          } catch { errors++; }
-        }
-      }
-      return { updated, total: (approvals || []).length, errors };
-    } catch {
-      // fall through to local
-    }
-  }
+  // Get approvals and users; update approvals.department to match requester's current department
   // Local fallback
   const list = loadLocal();
   let usersFallback: any[] = [];
@@ -144,44 +116,36 @@ export async function listApprovals(
   assetIds?: string[] | null,
   options?: { force?: boolean }
 ): Promise<ApprovalRequest[]> {
-  if (false) {
-    try {
-      const cacheKey = makeApprovalCacheKey(status, department, requestedBy, assetIds);
-      return await getCachedValue(
-        cacheKey,
-        async () => {
-          let query = supabase.from(TABLE).select("*").order("requested_at", { ascending: false });
-          if (status) query = query.eq("status", status);
-          if (department) {
-            const d = String(department).trim();
-            if (d.length) {
-              query = (query as any).ilike("department", d);
-            }
-          }
-          if (requestedBy) query = (query as any).ilike("requested_by", String(requestedBy));
-          if (assetIds && assetIds.length) {
-            query = (query as any).in("asset_id", Array.from(new Set(assetIds.map(String))));
-          }
-          const { data, error } = await query;
-          if (error) throw error;
-          return (data || []).map(toCamel);
-        },
-        { ttlMs: APPROVAL_CACHE_TTL, force: options?.force }
-      );
-    } catch (e) {
-      console.warn("approvals table unavailable, using localStorage", e);
+  try {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (department) params.append('department', department);
+    if (requestedBy) params.append('requestedBy', requestedBy);
+    if (assetIds && assetIds.length) {
+      assetIds.forEach(id => params.append('assetId', id));
     }
+    
+    const queryString = params.toString();
+    const url = `/approvals${queryString ? `?${queryString}` : ''}`;
+    const approvals = await api.get<ApprovalRequest[]>(url);
+    // Cache in localStorage
+    if (approvals && approvals.length > 0) {
+      saveLocal(approvals);
+    }
+    return approvals.map(toCamel);
+  } catch (error) {
+    console.warn("Failed to load approvals from API, using localStorage", error);
+    const list = loadLocal();
+    let out = list;
+    if (status) out = out.filter(a => a.status === status);
+    if (department) out = out.filter(a => (a.department || '').toLowerCase() === (department || '').toLowerCase());
+    if (requestedBy) out = out.filter(a => (a.requestedBy || '').toLowerCase() === (requestedBy || '').toLowerCase());
+    if (assetIds && assetIds.length) {
+      const set = new Set(assetIds.map((x) => String(x).toLowerCase()));
+      out = out.filter(a => set.has(String(a.assetId).toLowerCase()));
+    }
+    return out;
   }
-  const list = loadLocal();
-  let out = list;
-  if (status) out = out.filter(a => a.status === status);
-  if (department) out = out.filter(a => (a.department || '').toLowerCase() === (department || '').toLowerCase());
-  if (requestedBy) out = out.filter(a => (a.requestedBy || '').toLowerCase() === (requestedBy || '').toLowerCase());
-  if (assetIds && assetIds.length) {
-    const set = new Set(assetIds.map((x) => String(x).toLowerCase()));
-    out = out.filter(a => set.has(String(a.assetId).toLowerCase()));
-  }
-  return out;
 }
 
 export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status" | "requestedAt" | "reviewedBy" | "reviewedAt">): Promise<ApprovalRequest> {
@@ -210,17 +174,6 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
     ? String(input.department ?? dept).trim() || null
     : ((input.department ?? dept) as any ?? null);
   let finalDept = normalizedDept;
-  // If still null and Supabase is available, try to look up from app_users by email or id
-  if (!finalDept && false) {
-    try {
-      const key = (input.requestedBy || '').toLowerCase();
-      let q = supabase.from('app_users').select('department').limit(1);
-      if (key.includes('@')) q = q.eq('email', key);
-      else q = q.eq('id', input.requestedBy);
-      const { data, error } = await q;
-      if (!error && data && data[0]) finalDept = (data[0] as any).department ?? null;
-    } catch {}
-  }
   const payload: ApprovalRequest = {
     id: `APR-${Math.floor(Math.random()*900000+100000)}`,
     assetId: input.assetId,
@@ -232,70 +185,140 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
     reviewedAt: null,
     notes: input.notes ?? null,
     patch: input.patch ?? null,
-  department: finalDept,
+    department: finalDept,
   };
-  if (false) {
-    try {
-  const { data, error } = await supabase.from(TABLE).insert(toSnake(payload)).select("*").single();
-      if (error) throw error;
-      const created = toCamel(data);
-  // log submitted event
-  try { await supabase.from('approval_events').insert({ approval_id: created.id, event_type: 'submitted', author: created.requestedBy, message: created.notes || created.action }); } catch {}
-      invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
-      return created;
-    } catch (e) {
-      console.warn("approvals insert failed, using localStorage", e);
-    }
-  }
-  const list = loadLocal();
-  saveLocal([payload, ...list]);
-  invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
   
-  // Send email notification to managers
   try {
-    const managerEmails = await getManagerEmails(payload.department ?? undefined);
-    if (managerEmails.length > 0) {
-      // Get requester name
-      let requesterName = payload.requestedBy;
-      try {
-        const authUser = localStorage.getItem('auth_user');
-        if (authUser) {
-          const user = JSON.parse(authUser);
-          requesterName = user?.name || user?.email || requesterName;
-        }
-      } catch {}
-      
-      await sendApprovalSubmittedEmail({
-        approvalId: payload.id,
-        requesterName,
-        assetName: `Asset ${payload.assetId}`,
-        action: payload.action,
-        notes: payload.notes ?? undefined,
-        managersToNotify: managerEmails,
-      });
+    const created = await api.post<ApprovalRequest>('/approvals', toSnake(payload));
+    // Cache in localStorage
+    const list = loadLocal();
+    saveLocal([created, ...list]);
+    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
+    
+    // Send email notification to managers
+    try {
+      const managerEmails = await getManagerEmails(created.department ?? undefined);
+      if (managerEmails.length > 0) {
+        // Get requester name
+        let requesterName = created.requestedBy;
+        try {
+          const authUser = localStorage.getItem('auth_user');
+          if (authUser) {
+            const user = JSON.parse(authUser);
+            requesterName = user?.name || user?.email || requesterName;
+          }
+        } catch {}
+        
+        await sendApprovalSubmittedEmail({
+          approvalId: created.id,
+          requesterName,
+          assetName: `Asset ${created.assetId}`,
+          action: created.action,
+          notes: created.notes ?? undefined,
+          managersToNotify: managerEmails,
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to send approval submitted email:', error);
     }
+    
+    return created;
   } catch (error) {
-    console.warn('Failed to send approval submitted email:', error);
+    console.warn("Failed to save approval to API, using localStorage", error);
+    // Fallback to localStorage
+    const list = loadLocal();
+    saveLocal([payload, ...list]);
+    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
+    
+    // Send email notification to managers
+    try {
+      const managerEmails = await getManagerEmails(payload.department ?? undefined);
+      if (managerEmails.length > 0) {
+        let requesterName = payload.requestedBy;
+        try {
+          const authUser = localStorage.getItem('auth_user');
+          if (authUser) {
+            const user = JSON.parse(authUser);
+            requesterName = user?.name || user?.email || requesterName;
+          }
+        } catch {}
+        
+        await sendApprovalSubmittedEmail({
+          approvalId: payload.id,
+          requesterName,
+          assetName: `Asset ${payload.assetId}`,
+          action: payload.action,
+          notes: payload.notes ?? undefined,
+          managersToNotify: managerEmails,
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to send approval submitted email:', error);
+    }
+    
+    return payload;
   }
-  
-  return payload;
 }
 
 export async function forwardApprovalToAdmin(id: string, manager: string, notes?: string): Promise<ApprovalRequest | null> {
   const patch = { status: 'pending_admin' as ApprovalStatus, reviewedBy: manager, reviewedAt: new Date().toISOString(), notes: notes ?? null };
-  if (false) {
+  
+  try {
+    const updated = await api.put<ApprovalRequest>(`/approvals/${id}`, toSnake(patch));
+    // Update local cache
+    const list = loadLocal();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx >= 0) {
+      list[idx] = updated;
+      saveLocal(list);
+    } else {
+      saveLocal([updated, ...list]);
+    }
+    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
+    
+    // Send email notification to admins
     try {
-      const { data, error } = await supabase.from(TABLE).update(toSnake(patch)).eq("id", id).select("*").single();
-      if (error) throw error;
-      const updated = toCamel(data);
-  try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'forwarded', author: manager, message: notes || 'Forwarded to admin' }); } catch {}
+      const adminEmails = await getAdminEmails();
+      if (adminEmails.length > 0) {
+        let managerName = manager;
+        try {
+          const authUser = localStorage.getItem('auth_user');
+          if (authUser) {
+            const user = JSON.parse(authUser);
+            managerName = user?.name || user?.email || manager;
+          }
+        } catch {}
+        
+        await sendApprovalForwardedEmail({
+          approvalId: updated.id,
+          managerName,
+          assetName: `Asset ${updated.assetId}`,
+          action: updated.action,
+          notes: notes ?? undefined,
+          adminsToNotify: adminEmails,
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to send approval forwarded email:', error);
+    }
+    
+    return updated;
+  } catch (error) {
+    console.warn("Failed to update approval via API, using localStorage", error);
+    // Fallback to localStorage
+    const list = loadLocal();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx >= 0) {
+      const updated = { ...list[idx], ...patch } as ApprovalRequest;
+      const next = [...list];
+      next[idx] = updated;
+      saveLocal(next);
       invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
       
       // Send email notification to admins
       try {
         const adminEmails = await getAdminEmails();
         if (adminEmails.length > 0) {
-          // Get manager name
           let managerName = manager;
           try {
             const authUser = localStorage.getItem('auth_user');
@@ -319,46 +342,86 @@ export async function forwardApprovalToAdmin(id: string, manager: string, notes?
       }
       
       return updated;
-    } catch (e) {
-      console.warn("approvals update failed, using localStorage", e);
     }
+    return null;
   }
-  const list = loadLocal();
-  const idx = list.findIndex(a => a.id === id);
-  if (idx >= 0) {
-    const updated = { ...list[idx], ...patch } as ApprovalRequest;
-    const next = [...list];
-    next[idx] = updated;
-    saveLocal(next);
-    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
-    return updated;
-  }
-  return null;
 }
 
 export async function decideApprovalFinal(id: string, decision: Exclude<ApprovalStatus, "pending_manager" | "pending_admin">, admin: string, notes?: string): Promise<ApprovalRequest | null> {
   const patch = { status: decision, reviewedBy: admin, reviewedAt: new Date().toISOString(), notes: notes ?? null };
-  if (false) {
+  
+  try {
+    const updated = await api.put<ApprovalRequest>(`/approvals/${id}`, toSnake(patch));
+    
+    // If approved and it's an edit with a patch, try to apply changes to the asset
+    if (decision === 'approved' && updated.action === 'edit' && updated.patch && Object.keys(updated.patch).length) {
+      try {
+        await updateAsset(updated.assetId, updated.patch as any);
+      } catch (e) {
+        console.warn('Patch could not be applied:', e);
+      }
+    }
+    
+    // Update local cache
+    const list = loadLocal();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx >= 0) {
+      list[idx] = updated;
+      saveLocal(list);
+    } else {
+      saveLocal([updated, ...list]);
+    }
+    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
+    
+    // Send email notification to requester
     try {
-      const { data, error } = await supabase.from(TABLE).update(toSnake(patch)).eq("id", id).select("*").single();
-      if (error) throw error;
-      const updated = toCamel(data);
-      try { await supabase.from('approval_events').insert({ approval_id: id, event_type: decision === 'approved' ? 'approved' : 'rejected', author: admin, message: notes ?? decision }); } catch {}
-      // If approved and it's an edit with a patch, try to apply changes to the asset
+      let adminName = admin;
+      try {
+        const authUser = localStorage.getItem('auth_user');
+        if (authUser) {
+          const user = JSON.parse(authUser);
+          adminName = user?.name || user?.email || admin;
+        }
+      } catch {}
+      
+      await sendApprovalDecisionEmail({
+        approvalId: updated.id,
+        approverName: adminName,
+        requesterEmail: updated.requestedBy,
+        assetName: `Asset ${updated.assetId}`,
+        action: updated.action,
+        decision: decision === 'approved' ? 'approved' : 'rejected',
+        notes: notes ?? undefined,
+        forwardingManagerEmail: undefined,
+        department: updated.department,
+      });
+    } catch (error) {
+      console.warn('Failed to send approval decision email:', error);
+    }
+    
+    return updated;
+  } catch (error) {
+    console.warn("Failed to update approval via API, using localStorage", error);
+    // Fallback to localStorage
+    const list = loadLocal();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx >= 0) {
+      const updated = { ...list[idx], ...patch } as ApprovalRequest;
       if (decision === 'approved' && updated.action === 'edit' && updated.patch && Object.keys(updated.patch).length) {
         try {
           await updateAsset(updated.assetId, updated.patch as any);
-          try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'applied', author: admin, message: 'Patch applied to asset' }); } catch {}
         } catch (e) {
-          // Best-effort only; log failure note
-          try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'applied', author: admin, message: 'Patch could not be applied: ' + (e as any)?.message }); } catch {}
+          console.warn('Patch could not be applied:', e);
         }
       }
+      
+      const next = [...list];
+      next[idx] = updated;
+      saveLocal(next);
       invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
       
-      // Send email notification to requester (and manager if rejected)
+      // Send email notification to requester
       try {
-        // Get admin name
         let adminName = admin;
         try {
           const authUser = localStorage.getItem('auth_user');
@@ -368,25 +431,6 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
           }
         } catch {}
         
-        // Get forwarding manager's email if this was forwarded to admin
-        let forwardingManagerEmail: string | undefined;
-        if (decision === 'rejected' && updated.reviewedBy) {
-          try {
-            const { data: managerData } = await supabase
-              .from('app_users')
-              .select('email')
-              .eq('id', updated.reviewedBy)
-              .eq('role', 'manager')
-              .single();
-            
-            if (managerData?.email) {
-              forwardingManagerEmail = managerData.email;
-            }
-          } catch (e) {
-            console.warn('Could not fetch forwarding manager email:', e);
-          }
-        }
-        
         await sendApprovalDecisionEmail({
           approvalId: updated.id,
           approverName: adminName,
@@ -395,7 +439,7 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
           action: updated.action,
           decision: decision === 'approved' ? 'approved' : 'rejected',
           notes: notes ?? undefined,
-          forwardingManagerEmail,
+          forwardingManagerEmail: undefined,
           department: updated.department,
         });
       } catch (error) {
@@ -403,123 +447,71 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
       }
       
       return updated;
-    } catch (e) {
-      console.warn("approvals final decision failed, using localStorage", e);
     }
+    return null;
   }
-  const list = loadLocal();
-  const idx = list.findIndex(a => a.id === id);
-  if (idx >= 0) {
-    const updated = { ...list[idx], ...patch } as ApprovalRequest;
-    const next = [...list];
-    next[idx] = updated;
-    saveLocal(next);
-    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
-    return updated;
-  }
-  return null;
 }
 
 // Admin overrides approval without level 1 (manager) step
 export async function adminOverrideApprove(id: string, admin: string, notes?: string): Promise<ApprovalRequest | null> {
   const msg = notes && notes.trim().length ? notes : "admin approved it without level 1 approval";
   const res = await decideApprovalFinal(id, 'approved', admin, msg);
-  if (res && false) {
-    try {
-      await supabase.from('approval_events').insert({
-        approval_id: id,
-        event_type: 'admin_override_approved',
-        author: admin,
-        message: msg,
-      });
-    } catch {}
-  }
   return res;
 }
 
 export async function updateApprovalPatch(id: string, manager: string, patchData: Record<string, any>): Promise<ApprovalRequest | null> {
   const patch = { patch: patchData } as Partial<ApprovalRequest>;
-  if (false) {
-    try {
-      const { data, error } = await supabase.from(TABLE).update(toSnake(patch)).eq('id', id).select('*').single();
-      if (error) throw error;
-      const updated = toCamel(data);
-  try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'manager_updated', author: manager, message: 'Manager updated patch' }); } catch {}
-      invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
-      return updated;
-    } catch (e) {
-      console.warn('updateApprovalPatch failed, using localStorage', e);
+  
+  try {
+    const updated = await api.put<ApprovalRequest>(`/approvals/${id}`, toSnake(patch));
+    // Update local cache
+    const list = loadLocal();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx >= 0) {
+      list[idx] = updated;
+      saveLocal(list);
+    } else {
+      saveLocal([updated, ...list]);
     }
-  }
-  const list = loadLocal();
-  const idx = list.findIndex(a => a.id === id);
-  if (idx >= 0) {
-    const updated = { ...list[idx], patch: patchData } as ApprovalRequest;
-    const next = [...list];
-    next[idx] = updated;
-    saveLocal(next);
     invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
     return updated;
+  } catch (error) {
+    console.warn("Failed to update approval patch via API, using localStorage", error);
+    // Fallback to localStorage
+    const list = loadLocal();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx >= 0) {
+      const updated = { ...list[idx], patch: patchData } as ApprovalRequest;
+      const next = [...list];
+      next[idx] = updated;
+      saveLocal(next);
+      invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
+      return updated;
+    }
+    return null;
   }
-  return null;
 }
 
 export async function listApprovalEvents(approvalId: string): Promise<ApprovalEvent[]> {
-  if (false) {
-    try {
-      const { data, error } = await supabase
-        .from('approval_events')
-        .select('*')
-        .eq('approval_id', approvalId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      const remote = (data ?? []).map(ev => ({
-        id: ev.id,
-        approvalId: ev.approval_id,
-        eventType: ev.event_type,
-        message: ev.message ?? null,
-        author: ev.author ?? null,
-        createdAt: ev.created_at,
-      }));
-      // Merge with any local fallback events (e.g., when inserts were blocked by RLS)
-      const local = loadLocalEvents().filter(ev => ev.approvalId === approvalId);
-      return [...remote, ...local].sort((a,b) => (a.createdAt > b.createdAt ? 1 : -1));
-    } catch (e) {
-      console.warn('approval_events query failed', e);
-    }
+  try {
+    const events = await api.get<ApprovalEvent[]>(`/approval-events?approvalId=${approvalId}`);
+    return events.map((ev: any) => ({
+      id: ev.id,
+      approvalId: ev.approval_id || ev.approvalId,
+      eventType: ev.event_type || ev.eventType,
+      author: ev.author,
+      message: ev.message,
+      createdAt: ev.created_at || ev.createdAt,
+    }));
+  } catch (error) {
+    console.warn("Failed to load approval events from API, using localStorage", error);
+    return loadLocalEvents().filter(ev => ev.approvalId === approvalId).sort((a,b) => (a.createdAt > b.createdAt ? 1 : -1));
   }
-  // Local fallback
-  return loadLocalEvents().filter(ev => ev.approvalId === approvalId).sort((a,b) => (a.createdAt > b.createdAt ? 1 : -1));
 }
 
 // Add a comment event on an approval (used for per-field diff notes)
 export async function addApprovalComment(approvalId: string, author: string, field: string, message: string): Promise<void> {
   const msg = `${field}: ${message}`;
-  // Try remote first when available
-  if (false) {
-    try {
-      // Prefer SECURITY DEFINER RPC if present (handles missing parent row and RLS)
-      try {
-        const { error: rpcError } = await supabase.rpc('add_approval_event_v1', {
-          p_approval_id: approvalId,
-          p_event_type: 'comment',
-          p_author: author,
-          p_message: msg,
-          p_comments: msg,
-        } as any);
-        if (!rpcError) return;
-        // If RPC not deployed or failed, fall back to direct insert
-      } catch (e) {
-        // Fall through to direct insert
-      }
-      const { error } = await supabase.from('approval_events').insert({ approval_id: approvalId, event_type: 'comment', author, message: msg });
-      if (!error) return;
-      throw error;
-    } catch (e) {
-      console.warn('addApprovalComment remote insert failed, falling back to local', e);
-    }
-  }
-  // Local fallback: persist event so UI can show the comment
   const ev: ApprovalEvent = {
     id: `AEV-${Math.floor(Math.random()*900000+100000)}`,
     approvalId,
@@ -528,8 +520,25 @@ export async function addApprovalComment(approvalId: string, author: string, fie
     message: msg,
     createdAt: new Date().toISOString(),
   };
-  const list = loadLocalEvents();
-  saveLocalEvents([...list, ev]);
+  
+  try {
+    await api.post('/approval-events', {
+      id: ev.id,
+      approval_id: approvalId,
+      event_type: 'comment',
+      author,
+      message: msg,
+      created_at: ev.createdAt,
+    });
+    // Update local cache
+    const list = loadLocalEvents();
+    saveLocalEvents([...list, ev]);
+  } catch (error) {
+    console.warn("Failed to save approval comment to API, using localStorage", error);
+    // Fallback to localStorage
+    const list = loadLocalEvents();
+    saveLocalEvents([...list, ev]);
+  }
 }
 
 function toCamel(row: any): ApprovalRequest {

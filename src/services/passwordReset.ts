@@ -111,50 +111,6 @@ export async function requestPasswordReset(email: string): Promise<RequestResult
   const code = generateOtp();
   const ttl = PASSWORD_RESET_CODE_TTL_MINUTES;
 
-  if (false) {
-    const { data, error } = await supabase.rpc("request_password_reset_v1", {
-      p_email: normalized,
-      p_code: code,
-      p_ttl_minutes: ttl,
-    });
-    if (error) {
-      console.error("request_password_reset_v1 failed", error);
-      throw new Error(error.message || "RESET_REQUEST_FAILED");
-    }
-    const rows = Array.isArray(data) ? data : data ? [data] : [];
-    const row = rows[0];
-    const userFound = Boolean(row);
-
-    if (!userFound) {
-      return {
-        delivered: false,
-        maskedEmail: maskEmailAddress(normalized),
-        userFound: false,
-      };
-    }
-
-    const emailForUser = row?.user_email || normalized;
-    const maskedEmail = row?.masked_email || maskEmailAddress(emailForUser);
-
-    // Supabase used to send the email directly and return sent=true. If that flag
-    // is missing or false we fall back to Resend so users still receive their code.
-    let delivered = Boolean(row?.sent);
-    if (!delivered) {
-      delivered = await sendPasswordResetCodeEmail({
-        userName: row?.user_name || emailForUser,
-        userEmail: emailForUser,
-        code,
-        expiresInMinutes: ttl,
-        attemptsAllowed: PASSWORD_RESET_MAX_ATTEMPTS,
-      });
-    }
-
-    return {
-      delivered,
-      maskedEmail,
-      userFound: true,
-    };
-  }
 
   const users = loadLocalUsers();
   const user = users.find((u) => normalizeEmail(u.email || "") === normalized);
@@ -189,31 +145,6 @@ export async function verifyPasswordResetCode(email: string, code: string): Prom
   if (!normalized) throw new Error("EMAIL_REQUIRED");
   if (!code) throw new Error("CODE_REQUIRED");
 
-  if (false) {
-    const { data, error } = await supabase.rpc("verify_password_reset_code_v1", {
-      p_email: normalized,
-      p_code: code,
-    });
-    if (error) {
-      console.error("verify_password_reset_code_v1 failed", error);
-      throw new Error(error.message || "VERIFY_FAILED");
-    }
-    const result = (data || {}) as Record<string, any>;
-    const status = typeof result.status === "string" ? result.status : "resend";
-    if (status === "ok" && result.reset_token) {
-      return { status: "ok", resetToken: String(result.reset_token) };
-    }
-    if (status === "mismatch") {
-      const remaining =
-        typeof result.attempts_remaining === "number"
-          ? result.attempts_remaining
-          : Math.max(0, PASSWORD_RESET_MAX_ATTEMPTS - 1);
-      return { status: "mismatch", attemptsRemaining: remaining };
-    }
-    const resendRemaining =
-      typeof result.attempts_remaining === "number" ? result.attempts_remaining : 0;
-    return { status: "resend", attemptsRemaining: resendRemaining, reason: result.reason };
-  }
 
   const store = loadLocalResets();
   const entry = store[normalized];
@@ -255,20 +186,6 @@ export async function completePasswordReset(resetToken: string, newPassword: str
   const hashed = await createPasswordHash(newPassword.trim());
   if (!hashed) throw new Error("HASH_FAILED");
 
-  if (false) {
-    const { data, error } = await supabase.rpc("complete_password_reset_v1", {
-      p_reset_token: resetToken,
-      p_password_hash: hashed,
-    });
-    if (error) {
-      console.error("complete_password_reset_v1 failed", error);
-      throw new Error(error.message || "RESET_FAILED");
-    }
-    if (!data) {
-      throw new Error("INVALID_OR_EXPIRED_TOKEN");
-    }
-    return true;
-  }
 
   const store = loadLocalResets();
   const key = Object.keys(store).find((k) => {

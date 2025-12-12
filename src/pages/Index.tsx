@@ -1053,7 +1053,7 @@ const Index = () => {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        {/* AMC Watchlist */}
+        {/* Annual Maintenance Contract (AMC) */}
         <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-orange-500/5 shadow-sm">
           <CardHeader className="border-b border-border/40 pb-4">
             <div className="flex items-center justify-between">
@@ -1062,7 +1062,7 @@ const Index = () => {
                   <AlertTriangle className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-foreground">AMC Watchlist</CardTitle>
+                  <CardTitle className="text-base font-bold text-foreground">Annual Maintenance Contract (AMC)</CardTitle>
                   <CardDescription className="text-xs font-medium text-muted-foreground">Renewals within 60 days</CardDescription>
                 </div>
               </div>
@@ -1259,56 +1259,6 @@ const Index = () => {
           <DashboardCharts />
         </div>
         <div className="space-y-4 min-w-0">
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm min-w-0">
-            <CardHeader className="flex flex-row items-start justify-between gap-3">
-              <div className="flex items-start gap-2">
-                <span className="rounded-full bg-primary/10 p-2 text-primary">
-                  <Megaphone className="h-4 w-4" />
-                </span>
-                <div>
-                  <CardTitle className="text-sm font-semibold text-foreground">Announcements</CardTitle>
-                  <CardDescription>Latest from the SAMS team</CardDescription>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-xs"
-                onClick={() => navigate(isDemoMode() ? "/demo/newsletter" : "/newsletter")}
-              >
-                View all
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {announcements.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No announcements yet. Check back soon.</p>
-              ) : (
-                announcements.slice(0, 3).map((post) => {
-                  const badge = getAnnouncementBadge(post.category);
-                  return (
-                    <button
-                      key={post.id}
-                      type="button"
-                      onClick={() => navigate(isDemoMode() ? "/demo/newsletter" : "/newsletter")}
-                      className="w-full rounded-lg border border-border/40 bg-muted/40 px-3 py-2 text-left transition hover:border-border hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    >
-                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                        <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-medium ${badge.className}`}>
-                          {badge.label}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {new Date(post.created_at).toLocaleDateString()}
-                        </span>
-                        {post.author && <span className="text-muted-foreground">• {post.author}</span>}
-                      </div>
-                      <p className="mt-1 text-sm font-medium text-foreground line-clamp-1">{post.title}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{post.body}</p>
-                    </button>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
           <RecentActivity />
           {!isDemoMode() && <MyAudits />}
         </div>

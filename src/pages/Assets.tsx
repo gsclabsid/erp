@@ -133,7 +133,7 @@ const mockAssets = [
 ];
 
 export default function Assets() {
-  const isSupabase = false;
+  const isSupabase = true; // Use PostgreSQL API
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [showAddForm, setShowAddForm] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -345,7 +345,7 @@ export default function Assets() {
   // Simple UI loading flag
   const [loadingUI, setLoadingUI] = useState(true);
 
-  // Load from Supabase when configured
+        // Load from API
   useEffect(() => {
     if (!isSupabase || isDemoMode()) return;
     (async () => {
@@ -355,7 +355,7 @@ export default function Assets() {
         setLoadingUI(false);
       } catch (e: any) {
         console.error(e);
-        toast.error("Failed to load assets from Supabase; using local data");
+        toast.error("Failed to load assets from API; using local data");
         setLoadingUI(false);
       }
     })();
@@ -761,40 +761,10 @@ export default function Assets() {
         }
         const data = await listAssets();
         setAssets(data as any);
-    // Defer success toast to AssetForm (it toasts when we return true)
-    } else {
-        toast.info("Supabase not configured; using local data only");
-  const propertyCode = sanitizeCode(assetData.property);
-  const prefix = typePrefix(assetData.itemType) + propertyCode;
-        const quantity = Math.max(1, Number(assetData.quantity) || 1);
-        const baseSeq = nextSequence(assets, prefix);
-        const ids = Array.from({ length: quantity }, (_, i) => `${prefix}${String(baseSeq + i).padStart(4,'0')}`);
-        setAssets((prev) => ([
-          ...prev,
-          ...ids.map((id) => ({
-            id,
-            name: assetData.itemName,
-            type: assetData.itemType,
-            property: propertyCode,
-            department: assetData.department || null,
-            quantity: 1,
-            purchaseDate: assetData.purchaseDate || null,
-            expiryDate: assetData.expiryDate || null,
-            poNumber: assetData.poNumber || null,
-            condition: assetData.condition || null,
-            location: assetData.location || null,
-            description: assetData.description || null,
-            serialNumber: assetData.serialNumber || null,
-            status: 'Active',
-            amcEnabled,
-            amcStartDate,
-            amcEndDate,
-          }))
-        ]));
-        await logActivity("asset_created", `Asset ${assetData.itemName} created (local)`, "Local");
+        // Defer success toast to AssetForm (it toasts when we return true)
+        setShowAddForm(false);
+        return true;
       }
-      setShowAddForm(false);
-      return true;
     } catch (e: any) {
       console.error(e);
       const msg = (e?.message || '').toString();
@@ -844,16 +814,11 @@ export default function Assets() {
   const ok = window.confirm(`Are you sure you want to delete asset ${assetId}? This action cannot be undone.`);
   if (!ok) return;
     try {
-      if (false) {
-        await sbDeleteAsset(assetId);
-        setAssets((prev) => prev.filter(a => a.id !== assetId));
-        toast.success(`Asset ${assetId} deleted`);
-  await logActivity("asset_deleted", `Asset ${assetId} deleted`);
-      } else {
-        setAssets((prev) => prev.filter(a => a.id !== assetId));
-        toast.info("Supabase not configured; deleted locally only");
-  await logActivity("asset_deleted", `Asset ${assetId} deleted (local)`, "Local");
-      }
+      await sbDeleteAsset(assetId);
+      const data = await listAssets();
+      setAssets(data as any);
+      toast.success(`Asset ${assetId} deleted`);
+      await logActivity("asset_deleted", `Asset ${assetId} deleted`);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to delete asset");
@@ -867,18 +832,11 @@ export default function Assets() {
     if (!ok) return;
 
     try {
-      if (false) {
-        await Promise.all(assetsToDelete.map(a => sbDeleteAsset(a.id)));
-        const ids = new Set(assetsToDelete.map(a => a.id));
-        setAssets((prev) => prev.filter(a => !ids.has(a.id)));
-        toast.success(`${count} assets deleted`);
-        await logActivity("asset_deleted", `${count} assets deleted`);
-      } else {
-        const ids = new Set(assetsToDelete.map(a => a.id));
-        setAssets((prev) => prev.filter(a => !ids.has(a.id)));
-        toast.info("Supabase not configured; deleted locally only");
-        await logActivity("asset_deleted", `${count} assets deleted (local)`, "Local");
-      }
+      await Promise.all(assetsToDelete.map(a => sbDeleteAsset(a.id)));
+      const data = await listAssets();
+      setAssets(data as any);
+      toast.success(`${count} assets deleted`);
+      await logActivity("asset_deleted", `${count} assets deleted`);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to delete assets");
@@ -944,52 +902,38 @@ export default function Assets() {
       }
     }
 
-  if (false) {
-      // Update existing asset to quantity=1
-      try { await updateAsset(asset.id, { quantity: 1 } as any); } catch {}
-      // Create remaining units (skip the first which is existing id)
-      for (let i = 1; i < baseList.length; i++) {
-        const id = baseList[i].id;
-        const copy = baseList[i].copyOf;
-        await createAsset({
-          id,
-          name: copy.name,
-          type: copy.type,
-          property: copy.property,
-          property_id: copy.property_id ?? (copy.property as any),
-          quantity: 1,
-          purchaseDate: copy.purchaseDate ?? null,
-          expiryDate: copy.expiryDate ?? null,
-          poNumber: copy.poNumber ?? null,
-          condition: copy.condition ?? null,
-          status: copy.status || 'Active',
-          location: copy.location ?? null,
-          description: copy.description ?? null,
-          serialNumber: copy.serialNumber ?? null,
-          amcEnabled: Boolean(copy.amcEnabled),
-          amcStartDate: copy.amcStartDate ?? null,
-          amcEndDate: copy.amcEndDate ?? null,
-        } as any);
-      }
+  // Update existing asset to quantity=1
+  try { await updateAsset(asset.id, { quantity: 1 } as any); } catch {}
+  // Create remaining units (skip the first which is existing id)
+  for (let i = 1; i < baseList.length; i++) {
+    const id = baseList[i].id;
+    const copy = baseList[i].copyOf;
+    await createAsset({
+      id,
+      name: copy.name,
+      type: copy.type,
+      property: copy.property,
+      property_id: copy.property_id ?? (copy.property as any),
+      quantity: 1,
+      purchaseDate: copy.purchaseDate ?? null,
+      expiryDate: copy.expiryDate ?? null,
+      poNumber: copy.poNumber ?? null,
+      condition: copy.condition ?? null,
+      status: copy.status || 'Active',
+      location: copy.location ?? null,
+      description: copy.description ?? null,
+      serialNumber: copy.serialNumber ?? null,
+      amcEnabled: Boolean(copy.amcEnabled),
+      amcStartDate: copy.amcStartDate ?? null,
+      amcEndDate: copy.amcEndDate ?? null,
+    } as any);
+  }
   // Refresh list from DB and return only the unit assets we created/updated
   const unitIds = baseList.map(b => b.id);
   const fresh = await listAssets().catch(() => [] as any[]);
   setAssets(fresh as any[]);
   try { setSortBy('id-asc'); } catch {}
   return (fresh as any[]).filter((a: any) => unitIds.includes(String(a.id)));
-    } else {
-      // Local only: mutate state
-  setAssets(prev => {
-        const updated = prev.map(a => a.id === asset.id ? { ...a, quantity: 1 } : a);
-        for (let i = 1; i < baseList.length; i++) {
-          const id = baseList[i].id;
-          updated.push({ ...asset, id, quantity: 1 });
-        }
-        return updated;
-      });
-  try { setSortBy('id-asc'); } catch {}
-      return baseList.map(b => ({ ...asset, id: b.id, quantity: 1 }));
-    }
   };
 
   const getStatusBadge = (status: string) => <StatusChip status={status} />;
@@ -1070,9 +1014,7 @@ export default function Assets() {
                         printed: false,
                         imageUrl: qrCodeUrl,
                       } as any;
-                      if (false) {
-                        await createQRCode(payload);
-                      }
+                      await createQRCode(payload);
                       await logActivity("qr_generated", `QR generated for ${selectedAsset.name} (${selectedAsset.id})`);
                     } catch (e) {
                       console.error(e);
@@ -1949,20 +1891,18 @@ export default function Assets() {
                             images.push(labeled);
                             // Persist QR record so it appears in QR Codes page
                             try {
-                              if (false) {
-                                const payload: SbQRCode = {
-                                  id: `QR-${a.id}-${Date.now()}`,
-                                  assetId: a.id,
-                                  property: a.property ?? null,
-                                  generatedDate: new Date().toISOString().slice(0,10),
-                                  status: 'Generated',
-                                  printed: false,
-                                  imageUrl: labeled,
-                                } as any;
-                                await createQRCode(payload);
-                                createdIds.push(payload.id);
-                                createdCount++;
-                              }
+                              const payload: SbQRCode = {
+                                id: `QR-${a.id}-${Date.now()}`,
+                                assetId: a.id,
+                                property: a.property ?? null,
+                                generatedDate: new Date().toISOString().slice(0,10),
+                                status: 'Generated',
+                                printed: false,
+                                imageUrl: labeled,
+                              } as any;
+                              await createQRCode(payload);
+                              createdIds.push(payload.id);
+                              createdCount++;
                             } catch (e) {
                               console.error('Failed to create QR record for', a.id, e);
                             }
@@ -2028,7 +1968,7 @@ export default function Assets() {
                             }
                             // Mark printed in history for PDF path
                             try {
-                              if (false && createdIds.length) {
+                              if (createdIds.length) {
                                 await Promise.all(createdIds.map(id => updateQRCode(id, { printed: true, status: 'Printed' } as any)));
                               }
                             } catch {}
@@ -2045,7 +1985,7 @@ export default function Assets() {
                             await printImagesAsLabels(images, { widthIn, heightIn, orientation: 'portrait', fit: 'contain' });
                             // Mark printed in history for Label path
                             try {
-                              if (false && createdIds.length) {
+                              if (createdIds.length) {
                                 await Promise.all(createdIds.map(id => updateQRCode(id, { printed: true, status: 'Printed' } as any)));
                               }
                             } catch {}

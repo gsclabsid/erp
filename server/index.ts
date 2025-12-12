@@ -576,6 +576,57 @@ app.get('/api/user-property-access', async (req, res) => {
   }
 });
 
+app.post('/api/user-property-access', async (req, res) => {
+  try {
+    const { userId, propertyIds } = req.body;
+    if (!userId || !Array.isArray(propertyIds)) {
+      return res.status(400).json({ error: 'userId and propertyIds array are required' });
+    }
+
+    // Delete existing access for this user
+    await query('DELETE FROM user_property_access WHERE user_id = $1', [userId]);
+
+    // Insert new access records
+    if (propertyIds.length > 0) {
+      const values = propertyIds.map((pid: string, idx: number) => 
+        `($${idx * 2 + 1}, $${idx * 2 + 2})`
+      ).join(', ');
+      const params = propertyIds.flatMap((pid: string) => [userId, pid]);
+      await query(
+        `INSERT INTO user_property_access (user_id, property_id) VALUES ${values}`,
+        params
+      );
+    }
+
+    const result = await query(
+      'SELECT property_id FROM user_property_access WHERE user_id = $1',
+      [userId]
+    );
+    res.json(toCamelCase(result.rows.map((r: any) => r.property_id)));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/user-property-access', async (req, res) => {
+  try {
+    const { userId, propertyId } = req.query;
+    if (!userId || !propertyId) {
+      return res.status(400).json({ error: 'userId and propertyId are required' });
+    }
+    const result = await query(
+      'DELETE FROM user_property_access WHERE user_id = $1 AND property_id = $2 RETURNING id',
+      [userId, propertyId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Access record not found' });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Departments endpoints
 app.get('/api/departments', async (req, res) => {
   try {
@@ -741,6 +792,384 @@ app.delete('/api/qr-codes/:id', async (req, res) => {
       return res.status(404).json({ error: 'QR Code not found' });
     }
     res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Notifications endpoints
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const userId = req.query.user_id as string;
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    let queryStr = 'SELECT id, user_id, title, message, type, read, created_at FROM notifications';
+    const params: any[] = [];
+    
+    if (userId) {
+      queryStr += ' WHERE user_id = $1';
+      params.push(userId);
+    }
+    
+    queryStr += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1);
+    params.push(limit);
+    
+    const result = await query(queryStr, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/notifications', async (req, res) => {
+  try {
+    const notification = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO notifications (id, user_id, title, message, type, read)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, user_id, title, message, type, read, created_at`,
+      [
+        notification.id,
+        notification.user_id || null,
+        notification.title,
+        notification.message,
+        notification.type || 'system',
+        notification.read || false,
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/notifications/:id', async (req, res) => {
+  try {
+    const notification = toSnakeCase(req.body);
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    for (const [key, value] of Object.entries(notification)) {
+      if (key !== 'id' && value !== undefined) {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(req.params.id);
+    const result = await query(
+      `UPDATE notifications SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING id, user_id, title, message, type, read, created_at`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    res.json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/notifications/mark-all-read', async (req, res) => {
+  try {
+    const userId = req.body.user_id as string;
+    if (!userId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+    
+    const result = await query(
+      'UPDATE notifications SET read = true WHERE user_id = $1 AND read = false RETURNING id',
+      [userId]
+    );
+    res.json({ success: true, updated: result.rows.length });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/notifications/:id', async (req, res) => {
+  try {
+    const result = await query('DELETE FROM notifications WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/notifications', async (req, res) => {
+  try {
+    const userId = req.query.user_id as string;
+    if (!userId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+    
+    const result = await query('DELETE FROM notifications WHERE user_id = $1 RETURNING id', [userId]);
+    res.json({ success: true, deleted: result.rows.length });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Approvals endpoints
+app.get('/api/approvals', async (req, res) => {
+  try {
+    let queryText = 'SELECT * FROM approvals WHERE 1=1';
+    const params: any[] = [];
+    let paramCount = 1;
+
+    if (req.query.status) {
+      queryText += ` AND status = $${paramCount}`;
+      params.push(req.query.status);
+      paramCount++;
+    }
+    if (req.query.department) {
+      queryText += ` AND department = $${paramCount}`;
+      params.push(req.query.department);
+      paramCount++;
+    }
+    if (req.query.requestedBy) {
+      queryText += ` AND requested_by = $${paramCount}`;
+      params.push(req.query.requestedBy);
+      paramCount++;
+    }
+    if (req.query.assetId) {
+      queryText += ` AND asset_id = $${paramCount}`;
+      params.push(req.query.assetId);
+      paramCount++;
+    }
+
+    queryText += ' ORDER BY requested_at DESC';
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/approvals/:id', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM approvals WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Approval not found' });
+    }
+    res.json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/approvals', async (req, res) => {
+  try {
+    const approval = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO approvals (id, asset_id, action, status, requested_by, requested_at, notes, patch, department)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        approval.id,
+        approval.asset_id,
+        approval.action,
+        approval.status || 'pending_manager',
+        approval.requested_by,
+        approval.requested_at || new Date().toISOString(),
+        approval.notes || null,
+        approval.patch ? JSON.stringify(approval.patch) : null,
+        approval.department || null,
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/approvals/:id', async (req, res) => {
+  try {
+    const approval = toSnakeCase(req.body);
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    for (const [key, value] of Object.entries(approval)) {
+      if (key !== 'id' && value !== undefined) {
+        if (key === 'patch' && value !== null) {
+          fields.push(`${key} = $${paramCount}::jsonb`);
+          values.push(JSON.stringify(value));
+        } else {
+          fields.push(`${key} = $${paramCount}`);
+          values.push(value);
+        }
+        paramCount++;
+      }
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(req.params.id);
+    const result = await query(
+      `UPDATE approvals SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramCount} RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Approval not found' });
+    }
+
+    res.json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Approval Events endpoints
+app.get('/api/approval-events', async (req, res) => {
+  try {
+    let queryText = 'SELECT * FROM approval_events WHERE 1=1';
+    const params: any[] = [];
+    let paramCount = 1;
+
+    if (req.query.approvalId) {
+      queryText += ` AND approval_id = $${paramCount}`;
+      params.push(req.query.approvalId);
+      paramCount++;
+    }
+
+    queryText += ' ORDER BY created_at ASC';
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/approval-events', async (req, res) => {
+  try {
+    const event = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO approval_events (id, approval_id, event_type, author, message, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        event.id,
+        event.approval_id,
+        event.event_type,
+        event.author || null,
+        event.message || null,
+        event.created_at || new Date().toISOString(),
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// User Permissions endpoints
+app.get('/api/user-permissions', async (req, res) => {
+  try {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    const result = await query(
+      'SELECT * FROM user_permissions WHERE user_id = $1',
+      [userId]
+    );
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/user-permissions', async (req, res) => {
+  try {
+    const { userId, permissions } = req.body;
+    if (!userId || !Array.isArray(permissions)) {
+      return res.status(400).json({ error: 'userId and permissions array are required' });
+    }
+
+    // Delete existing permissions for this user
+    await query('DELETE FROM user_permissions WHERE user_id = $1', [userId]);
+
+    // Insert new permissions
+    if (permissions.length > 0) {
+      const values = permissions.map((p: any, idx: number) => 
+        `($${idx * 3 + 1}, $${idx * 3 + 2}, $${idx * 3 + 3}, $${idx * 3 + 4})`
+      ).join(', ');
+      const params = permissions.flatMap((p: any) => [userId, p.page, p.v || false, p.e || false]);
+      await query(
+        `INSERT INTO user_permissions (user_id, page, can_view, can_edit) VALUES ${values}`,
+        params
+      );
+    }
+
+    const result = await query(
+      'SELECT * FROM user_permissions WHERE user_id = $1',
+      [userId]
+    );
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// User Department Access endpoints
+app.get('/api/user-department-access', async (req, res) => {
+  try {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    const result = await query(
+      'SELECT department FROM user_department_access WHERE user_id = $1',
+      [userId]
+    );
+    res.json(result.rows.map((r: any) => r.department));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/user-department-access', async (req, res) => {
+  try {
+    const { userId, departments } = req.body;
+    if (!userId || !Array.isArray(departments)) {
+      return res.status(400).json({ error: 'userId and departments array are required' });
+    }
+
+    // Delete existing access for this user
+    await query('DELETE FROM user_department_access WHERE user_id = $1', [userId]);
+
+    // Insert new access records
+    if (departments.length > 0) {
+      const values = departments.map((dept: string, idx: number) => 
+        `($${idx * 2 + 1}, $${idx * 2 + 2})`
+      ).join(', ');
+      const params = departments.flatMap((dept: string) => [userId, dept]);
+      await query(
+        `INSERT INTO user_department_access (user_id, department) VALUES ${values}`,
+        params
+      );
+    }
+
+    const result = await query(
+      'SELECT department FROM user_department_access WHERE user_id = $1',
+      [userId]
+    );
+    res.json(result.rows.map((r: any) => r.department));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

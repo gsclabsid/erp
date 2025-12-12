@@ -46,7 +46,7 @@ import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 type NavItem = { name: string; href: string; icon: any };
 const baseNav: NavItem[] = [
   // Requested order
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Properties", href: "/properties", icon: Building2 },
   { name: "Assets", href: "/assets", icon: Package },
   { name: "Approvals", href: "/approvals", icon: ClipboardCheck },
@@ -59,7 +59,6 @@ const baseNav: NavItem[] = [
   { name: "Help Center", href: "/help", icon: LifeBuoy },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
-  { name: "License", href: "/license", icon: ShieldCheck },
 ];
 
 type BadgeTone = "destructive" | "warning" | "primary" | "muted";
@@ -81,7 +80,7 @@ const navGroupBlueprint: Array<{ key: string; title: string; items: string[] }> 
   { key: "workspace", title: "Workspace", items: ["Dashboard", "Properties", "Assets", "Scan QR"] },
   { key: "operations", title: "Operations", items: ["Approvals", "Tickets", "Help Center", "QR Codes", "Newsletter"] },
   { key: "insights", title: "Insights", items: ["Reports", "Audit"] },
-  { key: "administration", title: "Administration", items: ["Users", "Settings", "License"] },
+  { key: "administration", title: "Administration", items: ["Users", "Settings"] },
 ];
 
 const pageNameToKey: Record<string, PageKey | null> = {
@@ -96,7 +95,6 @@ const pageNameToKey: Record<string, PageKey | null> = {
   Audit: "audit",
   Users: "users",
   Settings: "settings",
-  License: null,
   Newsletter: null,
   "Help Center": null,
 } as const;
@@ -236,11 +234,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
 
     const filtered = working.filter((item) => {
       // Demo mode hides certain routes
-      if (demo && (item.name === "Audit" || item.name === "License")) return false;
+      if (demo && item.name === "Audit") return false;
       if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
       if (item.name === "Newsletter") return showNewsletter;
       if (item.name === "Approvals") return roleForPerm === "admin" || roleForPerm === "manager";
-      if (item.name === "License") return roleForPerm === "admin";
       if (item.name === "Audit") {
         const rule = (effective as any)["audit"];
         return (
@@ -258,14 +255,14 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     return filtered.map<SidebarEntry>((item) => {
       const href = (() => {
         if (!demo) return item.href;
-        if (item.href === "/") return "/demo";
+        if (item.href === "/dashboard") return "/demo";
         if (item.href === "/scan") return "/scan";
         return `/demo${item.href}`;
       })();
 
       const isActive =
         location.pathname === href ||
-        (href !== "/" && location.pathname.startsWith(`${href}/`));
+        (href !== "/dashboard" && location.pathname.startsWith(`${href}/`));
 
       const badges: SidebarEntry["badges"] = [];
       if (item.name === "Approvals" && pendingApprovals > 0) {

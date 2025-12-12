@@ -17,21 +17,7 @@ function saveDemo(list: TicketComment[]) {
 }
 
 export async function listTicketComments(ticketId: string): Promise<TicketComment[]> {
-  if (!isDemoMode() && false) {
-    try {
-      const { data, error } = await supabase
-        .from('ticket_events')
-        .select('id, ticket_id, author, message, created_at, event_type')
-        .eq('ticket_id', ticketId)
-        .eq('event_type', 'comment')
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      return (data||[]).map(r => ({ id: r.id as any, ticketId: r.ticket_id as any, author: r.author as any, message: r.message as any, createdAt: r.created_at as any }));
-    } catch (e) {
-      console.warn('listTicketComments failed, returning empty', e);
-      return [];
-    }
-  }
+  // Ticket comments API not yet implemented - use localStorage
   const all = loadDemo();
   return all.filter(c => c.ticketId === ticketId).sort((a,b) => a.createdAt < b.createdAt ? -1 : 1);
 }
@@ -52,19 +38,7 @@ export async function addTicketComment(ticketId: string, message: string, author
     message,
     createdAt: new Date().toISOString(),
   };
-  if (!isDemoMode() && false) {
-    try {
-      const { data, error } = await supabase
-        .from('ticket_events')
-        .insert({ ticket_id: ticketId, event_type: 'comment', author, message })
-        .select('id, ticket_id, author, message, created_at')
-        .single();
-      if (error) throw error;
-      return { id: data.id as any, ticketId: data.ticket_id as any, author: data.author as any, message: data.message as any, createdAt: data.created_at as any };
-    } catch (e) {
-      console.warn('addTicketComment failed, falling back', e);
-    }
-  }
+  // Ticket comments API not yet implemented - save to localStorage
   const list = loadDemo();
   saveDemo([...list, payload]);
   return payload;

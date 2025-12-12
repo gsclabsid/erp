@@ -37,51 +37,23 @@ function readLocalGlobal(): GlobalLicenseLimits { try { const raw = localStorage
 function writeLocalGlobal(v: GlobalLicenseLimits) { try { localStorage.setItem(LOCAL_KEY_GLOBAL, JSON.stringify(v)); } catch {} }
 
 export async function listPropertyLicenses(options?: { force?: boolean }): Promise<PropertyLicense[]> {
-  if (!false || isDemoMode()) {
-    return Object.values(readLocalMap());
-  }
-  return getCachedValue(
-    PROPERTY_LICENSE_CACHE_KEY,
-    async () => {
-      const { data, error } = await supabase.from('property_license').select('*');
-      if (error) throw error;
-      return (data || []) as PropertyLicense[];
-    },
-    { ttlMs: PROPERTY_LICENSE_CACHE_TTL, force: options?.force },
-  );
+  return Object.values(readLocalMap());
 }
 
 export async function getPropertyLicense(propertyId: string): Promise<PropertyLicense | null> {
-  if (!false || isDemoMode()) {
-    const map = readLocalMap();
-    return map[propertyId] || null;
-  }
-  const { data, error } = await supabase.from('property_license').select('*').eq('property_id', propertyId).maybeSingle();
-  if (error) throw error;
-  return data as PropertyLicense | null;
+  const map = readLocalMap();
+  return map[propertyId] || null;
 }
 
 export async function upsertPropertyLicense(propertyId: string, assetLimit: number, plan?: LicensePlan | null): Promise<PropertyLicense> {
-  if (!false || isDemoMode()) {
-    const map = readLocalMap();
-    map[propertyId] = { property_id: propertyId, asset_limit: assetLimit, plan, updated_at: new Date().toISOString() };
-    writeLocalMap(map);
-    return map[propertyId];
-  }
-  const { data, error } = await supabase.from('property_license').upsert({ property_id: propertyId, asset_limit: assetLimit, plan }).select().single();
-  if (error) throw error;
-  invalidateCache(PROPERTY_LICENSE_CACHE_KEY);
-  return data as PropertyLicense;
+  const map = readLocalMap();
+  map[propertyId] = { property_id: propertyId, asset_limit: assetLimit, plan, updated_at: new Date().toISOString() };
+  writeLocalMap(map);
+  return map[propertyId];
 }
 
 export async function getGlobalLimits(): Promise<GlobalLicenseLimits> {
-  if (!false || isDemoMode()) {
-    return normalizeGlobal(readLocalGlobal());
-  }
-  const { data, error } = await supabase.from('license_meta').select('value').eq('key', 'global_limits').maybeSingle();
-  if (error) throw error;
-  if (data?.value) return normalizeGlobal(data.value as GlobalLicenseLimits);
-  return defaultGlobalLimits();
+  return normalizeGlobal(readLocalGlobal());
 }
 
 function normalizeGlobal(raw: GlobalLicenseLimits): GlobalLicenseLimits {
@@ -136,24 +108,14 @@ export async function updateGlobalLimits(patch: Partial<GlobalLicenseLimits>): P
     delete (next as any).free_asset_allowance;
   }
 
-  if (!false || isDemoMode()) {
-    writeLocalGlobal(next);
-    return next;
-  }
-  const { error } = await supabase.from('license_meta').upsert({ key: 'global_limits', value: next });
-  if (error) throw error;
+  writeLocalGlobal(next);
   return next;
 }
 
 // Helper to compute total assets count (DB query). Provide fallback when offline.
 export async function countTotalAssets(): Promise<number> {
-  if (!false || isDemoMode()) {
-    try { const raw = localStorage.getItem('demo_assets') || localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); return Array.isArray(list) ? list.length : 0; } } catch {}
-    return 0;
-  }
-  const { count, error } = await supabase.from('assets').select('*', { count: 'exact', head: true });
-  if (error) throw error;
-  return count || 0;
+  try { const raw = localStorage.getItem('demo_assets') || localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); return Array.isArray(list) ? list.length : 0; } } catch {}
+  return 0;
 }
 
 export type LicenseCheckResult = {
@@ -181,13 +143,7 @@ export async function checkLicenseBeforeCreate(propertyId: string, increment: nu
   }
   // Count property usage
   let propUsage = 0;
-  if (!false || isDemoMode()) {
-    try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
-  } else {
-    const { count, error } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
-    if (error) throw error;
-    propUsage = count || 0;
-  }
+  try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
   if (effectiveLimit != null && effectiveLimit > 0 && propUsage + increment > effectiveLimit) {
     return { ok: false, reason: 'PROPERTY_LIMIT', message: 'Property asset limit reached. Please request an adjustment.', propertyLimit: effectiveLimit, propertyUsage: propUsage, globalLimit: 0, globalUsage: totalUsage };
   }
@@ -213,22 +169,12 @@ export async function getLicenseSnapshot(propertyId: string): Promise<LicenseSna
   let propertyLimit: number | undefined;
   if (lic && lic.asset_limit > 0) {
     propertyLimit = lic.asset_limit;
-    if (!false || isDemoMode()) {
-      try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
-    } else {
-      const { count } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
-      propertyUsage = count || 0;
-    }
+    try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
   } else if (lic && !lic.asset_limit && lic.plan) {
     const derived = derivedAllowanceForPlan(lic.plan);
     if (derived != null) {
       propertyLimit = derived;
-      if (!false || isDemoMode()) {
-        try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
-      } else {
-        const { count } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
-        propertyUsage = count || 0;
-      }
+      try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
     }
   }
   const snapshot: LicenseSnapshot = {

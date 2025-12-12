@@ -45,7 +45,7 @@ const NotFound = () => {
               <p>Still lost? Please reach out to support and include the URL above.</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button onClick={() => navigate(isDemoMode() ? "/demo" : "/")} className="gap-2 rounded-xl px-5">
+              <Button onClick={() => navigate(isDemoMode() ? "/demo" : "/dashboard")} className="gap-2 rounded-xl px-5">
                 <Home className="h-4 w-4" />
                 Back to Dashboard
               </Button>

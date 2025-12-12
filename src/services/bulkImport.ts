@@ -69,7 +69,7 @@ export async function downloadAssetTemplate(filename = "SAMS_Bulk_Import_Templat
     : allPropertyCodes.filter((code) => accessibleSet.has(code));
   const conditions = ["Excellent", "Good", "Fair", "Poor", "Damaged"];
   const statuses = ["Active", "Expiring Soon", "Expired", "Inactive"];
-  // Fetch department names from Supabase settings > departments (fallback to a small static list)
+  // Fetch department names from settings > departments (fallback to a small static list)
   let departments: string[] = [];
   try {
     const list = await listDepartments();
@@ -247,15 +247,7 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   // Build property code/name -> id map (best effort if backend connected)
   let propCodeToId: Record<string, string> = {};
   let propNameToId: Record<string, string> = {};
-  if (false) {
-    try {
-      const properties = await listProperties();
-      propCodeToId = Object.fromEntries(properties.map(p => [p.id, p.id]));
-      propNameToId = Object.fromEntries(properties.map(p => [p.name, p.id]));
-    } catch {
-      // ignore and fallback to provided code in property field
-    }
-  }
+  // Property mapping not yet implemented - use provided property code
 
   // Seed sequence counters by prefix from existing assets
   const seqByPrefix: Record<string, number> = {};
@@ -390,7 +382,7 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
     };
 
     try {
-      if (!false) throw new Error("NO_SUPABASE");
+      // Bulk import API not yet implemented
       // License check accounts for each unit we are about to create
       try {
         const check = await checkLicenseBeforeCreate(propertyCode, quantityUnits);

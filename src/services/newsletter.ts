@@ -54,46 +54,10 @@ const DEFAULT_CATEGORIES: NewsletterCategory[] = [
 ];
 
 export async function listNewsletterCategories(): Promise<NewsletterCategory[]> {
-  if (!isDemoMode() && false) {
-    try {
-      const { data, error } = await supabase.from(CAT_TABLE).select('key,label,hue').order('label');
-      if (error) throw error;
-      const rows = (data || []) as NewsletterCategory[];
-      return rows.length ? rows : DEFAULT_CATEGORIES;
-    } catch (e) {
-      console.warn('newsletter categories list failed, using defaults', e);
-    }
-  }
   return DEFAULT_CATEGORIES;
 }
 
 export async function listNewsletterPosts(limit = 20): Promise<NewsletterPost[]> {
-  if (!isDemoMode() && false) {
-    try {
-      const { data, error } = await supabase
-        .from(TABLE)
-        .select("id, title, body, created_at, updated_at, author, published, category")
-        .eq('published', true)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-      const rows = (data || []) as NewsletterPost[];
-      purgeLocalIfProduction();
-      if (rows.length > 0) {
-        try {
-          localStorage.removeItem(FB_KEY);
-        } catch {}
-        return rows;
-      }
-      try {
-        localStorage.removeItem(FB_KEY);
-      } catch {}
-      return rows;
-    } catch (e) {
-      console.warn('newsletter list failed, using localStorage', e);
-      try { localStorage.setItem(FB_KEY, 'select_failed'); } catch {}
-    }
-  }
   // Demo/local fallback: seed a few example posts the first time
   try {
     if (isDemoMode()) {
@@ -120,27 +84,6 @@ export async function listNewsletterPosts(limit = 20): Promise<NewsletterPost[]>
 }
 
 export async function listAllNewsletterPosts(limit = 200): Promise<NewsletterPost[]> {
-  if (!isDemoMode() && false) {
-    try {
-      const { data, error } = await supabase
-        .from(TABLE)
-        .select("id, title, body, created_at, updated_at, author, published, category")
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-      const rows = (data || []) as NewsletterPost[];
-      purgeLocalIfProduction();
-      if (rows.length > 0) {
-        try { localStorage.removeItem(FB_KEY); } catch {}
-        return rows;
-      }
-      try { localStorage.removeItem(FB_KEY); } catch {}
-      return [];
-    } catch (e) {
-      console.warn('newsletter listAll failed, using localStorage', e);
-      try { localStorage.setItem(FB_KEY, 'select_failed'); } catch {}
-    }
-  }
   // Demo/local: ensure demo seed
   try {
     if (isDemoMode()) {
@@ -174,83 +117,33 @@ export async function createNewsletterPost(input: { title: string; body: string;
     updated_at: null,
     category: input.category || 'release_notes',
   };
-  if (!isDemoMode() && false) {
-    try {
-      const { data, error } = await supabase
-        .from(TABLE)
-        .insert({ id: payload.id, title: payload.title, body: payload.body, published: payload.published, author: payload.author, category: payload.category })
-        .select("id, title, body, created_at, updated_at, author, published, category")
-        .maybeSingle();
-      if (error) throw error;
-      try { localStorage.removeItem(FB_KEY); } catch {}
-      
-      // Send email notification if published
-      const created = data as NewsletterPost;
-      if (created.published) {
-        try {
-          const recipientEmails = await getAllUserEmails();
-          if (recipientEmails.length > 0) {
-            await sendNewsletterEmail({
-              title: created.title,
-              body: created.body,
-              category: created.category,
-              author: created.author ?? undefined,
-              recipientEmails,
-            });
-          }
-        } catch (error) {
-          console.warn('Failed to send newsletter email:', error);
-        }
-      }
-      
-      return created;
-    } catch (e) {
-      console.warn('newsletter create failed, using localStorage', e);
-      try { localStorage.setItem(FB_KEY, 'insert_failed'); } catch {}
-    }
-  }
+  // Newsletter API not yet implemented - save to localStorage
   const list = loadLocal();
   saveLocal([payload, ...list]);
+  
+  // Send email notification if published
+  if (payload.published) {
+    try {
+      const recipientEmails = await getAllUserEmails();
+      if (recipientEmails.length > 0) {
+        await sendNewsletterEmail({
+          title: payload.title,
+          body: payload.body,
+          category: payload.category,
+          author: payload.author ?? undefined,
+          recipientEmails,
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to send newsletter email:', error);
+    }
+  }
+  
   return payload;
 }
 
 export async function updateNewsletterPost(id: string, patch: Partial<Pick<NewsletterPost,'title'|'body'|'published'|'category'>>): Promise<NewsletterPost> {
-  if (!isDemoMode() && false) {
-    try {
-      const { data, error } = await supabase
-        .from(TABLE)
-        .update({ ...patch, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select("id, title, body, created_at, updated_at, author, published, category")
-        .maybeSingle();
-      if (error) throw error;
-      try { localStorage.removeItem(FB_KEY); } catch {}
-      
-      // Send email notification if newly published
-      const updated = data as NewsletterPost;
-      if (updated.published && patch.published === true) {
-        try {
-          const recipientEmails = await getAllUserEmails();
-          if (recipientEmails.length > 0) {
-            await sendNewsletterEmail({
-              title: updated.title,
-              body: updated.body,
-              category: updated.category,
-              author: updated.author ?? undefined,
-              recipientEmails,
-            });
-          }
-        } catch (error) {
-          console.warn('Failed to send newsletter email:', error);
-        }
-      }
-      
-      return updated;
-    } catch (e) {
-      console.warn('newsletter update failed, using localStorage', e);
-      try { localStorage.setItem(FB_KEY, 'update_failed'); } catch {}
-    }
-  }
+  // Newsletter API not yet implemented - save to localStorage
   const list = loadLocal();
   const idx = list.findIndex(p => p.id === id);
   if (idx >= 0) {
@@ -264,17 +157,7 @@ export async function updateNewsletterPost(id: string, patch: Partial<Pick<Newsl
 }
 
 export async function deleteNewsletterPost(id: string): Promise<void> {
-  if (!isDemoMode() && false) {
-    try {
-      const { error } = await supabase.from(TABLE).delete().eq('id', id);
-      if (error) throw error;
-      try { localStorage.removeItem(FB_KEY); } catch {}
-      return;
-    } catch (e) {
-      console.warn('newsletter delete failed, using localStorage', e);
-      try { localStorage.setItem(FB_KEY, 'delete_failed'); } catch {}
-    }
-  }
+  // Newsletter API not yet implemented - delete from localStorage
   const list = loadLocal();
   saveLocal(list.filter(p => p.id !== id));
 }

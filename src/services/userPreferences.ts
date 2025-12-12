@@ -85,48 +85,7 @@ function defaults(userId: string): UserPreferences {
 }
 
 export async function getUserPreferences(userId: string): Promise<UserPreferences> {
-  if (false && !isDemoMode()) {
-    try {
-      // Require an active Supabase session for RLS-protected table
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) throw new Error('NO_SESSION');
-      // Avoid cross-user contamination: ensure session email matches app user email (if present)
-      let appEmail: string | null = null;
-      try {
-        const raw = localStorage.getItem('auth_user');
-        if (raw) appEmail = (JSON.parse(raw).email || '').toLowerCase();
-      } catch {}
-      const { data: checkUser } = await supabase.auth.getUser();
-      const sessEmail = (checkUser?.user?.email || '').toLowerCase();
-      if (appEmail && sessEmail && appEmail !== sessEmail) throw new Error('SESSION_MISMATCH');
-      // Always use the Supabase Auth UID to satisfy FK and RLS (ignore passed-in userId)
-      const { data: authData } = await supabase.auth.getUser();
-      const effectiveId = authData?.user?.id || '';
-      const effectiveEmail = authData?.user?.email || null;
-      if (!effectiveId) throw new Error('NO_USER_ID');
-      const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', effectiveId).maybeSingle();
-      if (error) throw error;
-      if (data) {
-        const resolved = applyPostLoadDefaults({ ...(data as UserPreferences), user_id: effectiveId });
-        cachePreferences(resolved, collectAliasIds(userId, effectiveId));
-        return resolved;
-      }
-      const def = { ...defaults(effectiveId), user_email: effectiveEmail };
-      const { data: created, error: e2 } = await supabase.from(TABLE).upsert(def, { onConflict: 'user_id' }).select().single();
-      if (e2) throw e2;
-      const seeded = applyPostLoadDefaults({ ...(created as UserPreferences), user_id: effectiveId });
-      cachePreferences(seeded, collectAliasIds(userId, effectiveId));
-      return seeded;
-    } catch (error) {
-      // Reduce noise in production for common NO_SESSION cases
-      const msg = (error as any)?.message || String(error);
-      if (msg === 'NO_SESSION' || msg === 'SESSION_MISMATCH') {
-        console.debug('getUserPreferences falling back to local storage:', msg);
-      } else {
-        console.warn('getUserPreferences falling back to local storage', error);
-      }
-    }
-  }
+  // User preferences API not yet implemented - use localStorage
   const aliasIds = collectAliasIds(userId, null);
   const candidates = [userId, ...aliasIds];
   let localRaw: UserPreferences | null = null;
@@ -144,39 +103,7 @@ export async function getUserPreferences(userId: string): Promise<UserPreference
 }
 
 export async function upsertUserPreferences(userId: string, patch: Partial<UserPreferences>): Promise<UserPreferences> {
-  if (false && !isDemoMode()) {
-    try {
-      // Require an active Supabase session for RLS-protected table
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) throw new Error('NO_SESSION');
-      // Avoid cross-user contamination: ensure session email matches app user email (if present)
-      let appEmail: string | null = null;
-      try {
-        const raw = localStorage.getItem('auth_user');
-        if (raw) appEmail = (JSON.parse(raw).email || '').toLowerCase();
-      } catch {}
-      const { data: checkUser } = await supabase.auth.getUser();
-      const sessEmail = (checkUser?.user?.email || '').toLowerCase();
-      if (appEmail && sessEmail && appEmail !== sessEmail) throw new Error('SESSION_MISMATCH');
-      const { data: authData2 } = await supabase.auth.getUser();
-      const effectiveId = authData2?.user?.id || '';
-      const email = authData2?.user?.email || null;
-      if (!effectiveId) throw new Error('NO_USER_ID');
-      const row = { user_id: effectiveId, user_email: email, ...patch } as any;
-      const { data, error } = await supabase.from(TABLE).upsert(row, { onConflict: 'user_id' }).select().single();
-      if (error) throw error;
-      const updated = applyPostLoadDefaults({ ...(data as UserPreferences), user_id: effectiveId });
-      cachePreferences(updated, collectAliasIds(userId, effectiveId));
-      return updated;
-    } catch (error) {
-      const msg = (error as any)?.message || String(error);
-      if (msg === 'NO_SESSION' || msg === 'SESSION_MISMATCH') {
-        console.debug('upsertUserPreferences falling back to local storage:', msg);
-      } else {
-        console.warn('upsertUserPreferences falling back to local storage', error);
-      }
-    }
-  }
+  // User preferences API not yet implemented - use localStorage
   const cur = loadLocal(userId) || defaults(userId);
   const next: UserPreferences = { ...cur, ...patch };
   saveLocal(next);

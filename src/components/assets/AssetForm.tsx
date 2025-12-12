@@ -59,9 +59,9 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
   useEffect(() => {
     (async () => {
       try {
-        // Properties from Supabase (or fallback handled in page state)
-        if (false) {
-          let props = await listProperties();
+        // Properties from API (PostgreSQL) - force refresh to get newly created properties
+        if (!isDemoMode()) {
+          let props = await listProperties({ force: true });
           // Filter by access for non-admin users
           try {
             const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
@@ -81,7 +81,7 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
           } catch {}
           setProperties(props);
         } else {
-          // fallback to common names when no Supabase
+          // fallback to common names when in demo mode
           setProperties([
             { id: "PROP-001", name: "Main Office", type: "Office", status: "Active", address: "", manager: "" } as any,
             { id: "PROP-002", name: "Warehouse", type: "Storage", status: "Active", address: "", manager: "" } as any,
@@ -112,7 +112,7 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
         const cu = raw ? JSON.parse(raw) : null;
         setCurrentUser(cu);
         // Load allowed departments for current user (self), when backend present
-        if (false && cu?.id) {
+        if (!isDemoMode() && cu?.id) {
           try {
             const depts = await listUserDepartmentAccess(cu.id);
             setAllowedDeptNames(Array.isArray(depts) ? depts : []);

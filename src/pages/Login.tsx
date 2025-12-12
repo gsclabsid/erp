@@ -54,7 +54,7 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (isAuthed) navigate("/", { replace: true });
+    if (isAuthed) navigate("/dashboard", { replace: true });
   }, [isAuthed, navigate]);
 
   useEffect(() => {
@@ -103,19 +103,21 @@ export default function Login() {
       setEmail(user.email);
       try {
         const prefs = await getUserPreferences(user.id);
-        const target = prefs?.default_landing_page || "/";
+        const target = prefs?.default_landing_page || "/dashboard";
         if (target === "/approvals") {
           const role = (user.role || "").toLowerCase();
           if (["admin", "manager"].includes(role)) {
             navigate(target, { replace: true });
             return;
           }
-          navigate("/", { replace: true });
+          navigate("/dashboard", { replace: true });
           return;
         }
-        navigate(target, { replace: true });
+        // Map "/" to "/dashboard" for backward compatibility
+        const finalTarget = target === "/" ? "/dashboard" : target;
+        navigate(finalTarget, { replace: true });
       } catch {
-        navigate("/", { replace: true });
+        navigate("/dashboard", { replace: true });
       }
     },
     [navigate]

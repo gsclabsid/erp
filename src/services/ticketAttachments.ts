@@ -20,45 +20,14 @@ async function ensureBucket(): Promise<void> {
 }
 
 export async function listAttachments(ticketId: string): Promise<TicketAttachment[]> {
-  if (!isDemoMode() && false) {
-    try {
-      await ensureBucket();
-      const prefix = `${ticketId}/`;
-      const { data, error } = await supabase.storage.from(BUCKET).list(prefix, { limit: 100 });
-      if (error) throw error;
-      const baseUrl = supabase.storage.from(BUCKET).getPublicUrl(prefix).data.publicUrl.replace(/\/$/, '');
-      return (data||[]).map(obj => ({
-        id: `${prefix}${obj.name}`,
-        ticketId,
-        name: obj.name,
-        url: `${baseUrl}/${encodeURIComponent(obj.name)}`,
-        uploadedAt: new Date(obj.created_at || obj.updated_at || Date.now()).toISOString(),
-        uploadedBy: 'user',
-      }));
-    } catch (e) {
-      console.warn('listAttachments failed, returning empty', e);
-      return [];
-    }
-  }
+  // Ticket attachments API not yet implemented - use localStorage
   return loadDemo().filter(a => a.ticketId === ticketId);
 }
 
 export async function uploadAttachment(ticketId: string, file: File): Promise<TicketAttachment> {
   const actor = (() => { try { const raw = (isDemoMode()? (sessionStorage.getItem('demo_auth_user')||localStorage.getItem('demo_auth_user')):null)||localStorage.getItem('auth_user'); const u = raw? JSON.parse(raw): null; return (u?.email||u?.id||'user') as string; } catch { return 'user'; } })();
   const name = `${Date.now()}_${file.name}`;
-  if (!isDemoMode() && false) {
-    try {
-      await ensureBucket();
-      const path = `${ticketId}/${name}`;
-      const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
-      if (error) throw error;
-      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
-      const att: TicketAttachment = { id: path, ticketId, name: file.name, url: urlData.publicUrl, uploadedAt: new Date().toISOString(), uploadedBy: actor };
-      return att;
-    } catch (e) {
-      console.warn('uploadAttachment failed, falling back', e);
-    }
-  }
+  // Ticket attachments API not yet implemented - use localStorage
   const att: TicketAttachment = { id: `ATT-${Math.floor(Math.random()*900000+100000)}`, ticketId, name: file.name, url: URL.createObjectURL(file), uploadedAt: new Date().toISOString(), uploadedBy: actor };
   const list = loadDemo();
   saveDemo([...list, att]);
@@ -66,15 +35,7 @@ export async function uploadAttachment(ticketId: string, file: File): Promise<Ti
 }
 
 export async function removeAttachment(attachmentId: string): Promise<void> {
-  if (!isDemoMode() && false) {
-    try {
-      const { error } = await supabase.storage.from(BUCKET).remove([attachmentId]);
-      if (error) throw error;
-      return;
-    } catch (e) {
-      console.warn('removeAttachment failed, ignoring', e);
-    }
-  }
+  // Ticket attachments API not yet implemented - remove from localStorage
   const list = loadDemo();
   const next = list.filter(a => a.id !== attachmentId);
   saveDemo(next);

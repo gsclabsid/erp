@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
 import MetricCard from "@/components/ui/metric-card";
-import { Building2, Package, MapPin, Edit, Trash2, AlertTriangle, Users } from "lucide-react";
+import { Building2, Package, MapPin, Edit, Trash2, AlertTriangle, Users, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import { usePasswordConfirmation } from "@/hooks/use-password-confirmation";
@@ -91,7 +91,7 @@ const mockProperties = [
 
 export default function Properties() {
   const [properties, setProperties] = useState<any[]>(mockProperties);
-  const isSupabase = false;
+  const isSupabase = true; // Using PostgreSQL API
   const [role, setRole] = useState<string>("");
   const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
   // UI state: filters and search
@@ -125,23 +125,24 @@ export default function Properties() {
   }, [role]);
 
   useEffect(() => {
-    if (!isSupabase) return;
     (async () => {
       try {
         // Load properties, assets, and user-property access
-        const [props, assets, licenses, userAccess] = await Promise.all([
+        const [props, assets, licenses] = await Promise.all([
           listProperties(),
           listAssets().catch(() => [] as Asset[]),
           listPropertyLicenses().catch(()=>[]),
-          supabase
-            .from("user_property_access")
-            .select("user_id, property_id")
-            .then(({ data, error }) => {
-              if (error) throw error;
-              return (data || []) as Array<{ user_id: string; property_id: string }>;
-            })
-            .catch(() => [] as Array<{ user_id: string; property_id: string }>),
         ]);
+        
+        // Load user property access from API
+        let userAccess: Array<{ user_id: string; property_id: string }> = [];
+        try {
+          const { api } = await import("@/lib/api");
+          const accessData = await api.get<Array<{ user_id: string; property_id: string }>>('/user-property-access');
+          userAccess = accessData || [];
+        } catch {
+          userAccess = [];
+        }
 
         // Build counts by property id/code
         const assetCounts: Record<string, number> = {};
@@ -201,7 +202,7 @@ export default function Properties() {
         setProperties(merged);
       } catch (e: any) {
         console.error(e);
-        toast.error("Failed to load properties from Supabase; using local data");
+        toast.error("Failed to load properties from API; using local data");
       }
     })();
   }, [isSupabase]);
@@ -226,7 +227,22 @@ export default function Properties() {
     } catch {}
   }, []);
 
-  // Add Property action removed; properties are added via License page
+  const handleAddProperty = () => {
+    if ((role || '').toLowerCase() !== 'admin') {
+      toast.error("Only admins can create properties");
+      return;
+    }
+    setEditingId(null);
+    setForm({
+      id: "",
+      name: "",
+      address: "",
+      type: "Office",
+      status: "Active",
+      manager: "",
+    });
+    setIsDialogOpen(true);
+  };
 
   const handleEditProperty = (propertyId: string) => {
     if ((role || '').toLowerCase() !== 'admin') {
@@ -540,6 +556,12 @@ export default function Properties() {
                     <SelectItem value="inactive">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
+                {canEditPage && (
+                  <Button onClick={handleAddProperty} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add Property
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>

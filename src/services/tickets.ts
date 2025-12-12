@@ -172,21 +172,25 @@ export async function listTickets(
         const url = `/tickets${queryString ? `?${queryString}` : ''}`;
         const tickets = await api.get<Ticket[]>(url);
         try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
-        return tickets.map(toCamel);
+        const mapped = tickets.map(toCamel);
+        // Cache all tickets in localStorage for fallback
+        const allTickets = await api.get<Ticket[]>('/tickets');
+        saveLocal(allTickets.map(toCamel));
+        return mapped;
       },
       { ttlMs: TICKET_CACHE_TTL, force: options?.force }
     );
   } catch (e) {
     try { localStorage.setItem('tickets_fallback_reason', 'select_failed'); } catch {}
     console.warn("tickets API unavailable, using localStorage", e);
+    const list = loadLocal();
+    return list.filter(t => (
+      (!filter?.status || t.status === filter.status) &&
+      (!filter?.assignee || t.assignee === filter.assignee) &&
+      (!filter?.targetRole || t.targetRole === filter.targetRole) &&
+      (!filter?.createdBy || t.createdBy === filter.createdBy)
+    ));
   }
-  const list = loadLocal();
-  return list.filter(t => (
-    (!filter?.status || t.status === filter.status) &&
-    (!filter?.assignee || t.assignee === filter.assignee) &&
-    (!filter?.targetRole || t.targetRole === filter.targetRole) &&
-    (!filter?.createdBy || t.createdBy === filter.createdBy)
-  ));
 }
 
 export type NewTicketInput = {
@@ -281,6 +285,9 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
   if (!isDemoMode()) {
     try {
       const created = await api.post<Ticket>('/tickets', toSnake(payload));
+      // Cache in localStorage
+      const list = loadLocal();
+      saveLocal([toCamel(created), ...list]);
       // Clear fallback flag now that core insert worked
       try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
       // Log an event (best-effort)
@@ -323,7 +330,7 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
       }
       
       invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
-      return created;
+      return toCamel(created);
     } catch (e) {
       try { localStorage.setItem('tickets_fallback_reason', 'insert_failed'); } catch {}
       console.warn("tickets insert failed, using localStorage", e);
@@ -432,9 +439,18 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
           console.warn('Failed to send ticket status update email:', error);
         }
       }
+      // Cache in localStorage
+      const list = loadLocal();
+      const idx = list.findIndex(t => t.id === id);
+      if (idx >= 0) {
+        list[idx] = toCamel(updated);
+        saveLocal(list);
+      } else {
+        saveLocal([toCamel(updated), ...list]);
+      }
       try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
       invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
-      return updated;
+      return toCamel(updated);
     } catch (e) {
       console.warn("tickets update failed, using localStorage", e);
     }

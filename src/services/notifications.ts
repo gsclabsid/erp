@@ -1,6 +1,6 @@
-import { isDemoMode } from "@/lib/demo";
-import { getCurrentUserId } from "@/services/permissions";
 import { playNotificationSound } from "@/lib/sound";
+import { api } from "@/lib/api";
+import { getCurrentUserId } from "@/services/permissions";
 import { listUsers } from "@/services/users";
 
 export type Notification = {
@@ -10,9 +10,9 @@ export type Notification = {
   type: string; // e.g., report, qr, system
   read: boolean;
   created_at: string; // ISO
+  user_id?: string | null;
 };
 
-const table = "notifications";
 const LS_KEY = "notifications";
 
 function loadLocal(): Notification[] {
@@ -29,21 +29,18 @@ function saveLocal(list: Notification[]) {
 }
 
 export async function listNotifications(limit = 50): Promise<Notification[]> {
-  if (!isDemoMode() && false) {
-    try {
-      const uid = getCurrentUserId();
-      if (!uid) return [];
-      const { data, error } = await supabase
-        .from(table)
-        .select("id, title, message, type, read, created_at")
-        .eq('user_id', uid)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-      return (data ?? []) as Notification[];
-    } catch (e) {
-      console.warn("notifications table unavailable, using localStorage", e);
+  try {
+    const userId = getCurrentUserId();
+    if (userId) {
+      const notifications = await api.get<Notification[]>(`/notifications?user_id=${userId}&limit=${limit}`);
+      // Cache in localStorage as fallback
+      if (notifications && notifications.length > 0) {
+        saveLocal(notifications);
+      }
+      return notifications;
     }
+  } catch (error) {
+    console.warn("Failed to load notifications from API, using localStorage", error);
   }
   return loadLocal().slice(0, limit);
 }
@@ -52,6 +49,7 @@ export async function addNotification(
   input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean },
   opts?: { silent?: boolean }
 ): Promise<Notification> {
+  const userId = getCurrentUserId();
   const payload: Notification = {
     id: `NTF-${Math.floor(Math.random()*900000+100000)}`,
     title: input.title,
@@ -59,38 +57,30 @@ export async function addNotification(
     type: input.type,
     read: input.read ?? false,
     created_at: new Date().toISOString(),
+    user_id: userId,
   };
-  if (!isDemoMode() && false) {
-    try {
-      const uid = getCurrentUserId();
-      // Try to capture user_name for auditability
-      let user_name: string | null = null;
-      try {
-        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
-        if (raw) { const u = JSON.parse(raw); user_name = u?.name || u?.email || u?.id || null; }
-      } catch {}
-      const { data, error } = await supabase
-        .from(table)
-        .insert({
-          id: payload.id,
-          title: payload.title,
-          message: payload.message,
-          type: payload.type,
-          read: payload.read,
-          created_at: payload.created_at,
-          user_id: uid ?? null,
-          user_name,
-        })
-        .select("id, title, message, type, read, created_at")
-        .single();
-      if (error) throw error;
-      // Local side-effect: play sound once notification is recorded remotely
+  
+  try {
+    if (userId) {
+      const created = await api.post<Notification>('/notifications', {
+        id: payload.id,
+        user_id: userId,
+        title: payload.title,
+        message: payload.message,
+        type: payload.type,
+        read: payload.read,
+      });
+      // Update local cache
+      const list = loadLocal();
+      saveLocal([created, ...list]);
       try { if (!opts?.silent) playNotificationSound(); } catch {}
-      return data as Notification;
-    } catch (e) {
-      console.warn("notifications insert failed, using localStorage", e);
+      return created;
     }
+  } catch (error) {
+    console.warn("Failed to save notification to API, using localStorage", error);
   }
+  
+  // Fallback to localStorage
   const list = loadLocal();
   const updated = [payload, ...list];
   saveLocal(updated);
@@ -111,35 +101,31 @@ export async function addUserNotification(
     type: input.type,
     read: input.read ?? false,
     created_at: new Date().toISOString(),
+    user_id: userId,
   };
-  if (!isDemoMode() && false) {
-    try {
-      let user_name: string | null = null;
-      try {
-        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
-        if (raw) { const u = JSON.parse(raw); user_name = u?.name || u?.email || u?.id || null; }
-      } catch {}
-      const { data, error } = await supabase
-        .from('notifications')
-        .insert({
-          id: payload.id,
-          title: payload.title,
-          message: payload.message,
-          type: payload.type,
-          read: payload.read,
-          created_at: payload.created_at,
-          user_id: userId,
-          user_name,
-        })
-        .select("id, title, message, type, read, created_at")
-        .single();
-      if (error) throw error;
-      try { if (!opts?.silent) playNotificationSound(); } catch {}
-      return data as Notification;
-    } catch (e) {
-      console.warn('addUserNotification failed, falling back to localStorage', e);
+  
+  try {
+    const created = await api.post<Notification>('/notifications', {
+      id: payload.id,
+      user_id: userId,
+      title: payload.title,
+      message: payload.message,
+      type: payload.type,
+      read: payload.read,
+    });
+    // Update local cache if this is the current user
+    const currentUserId = getCurrentUserId();
+    if (currentUserId === userId) {
+      const list = loadLocal();
+      saveLocal([created, ...list]);
     }
+    try { if (!opts?.silent) playNotificationSound(); } catch {}
+    return created;
+  } catch (error) {
+    console.warn("Failed to save user notification to API, using localStorage", error);
   }
+  
+  // Fallback to localStorage
   const list = loadLocal();
   const updated = [payload, ...list];
   saveLocal(updated);
@@ -147,99 +133,68 @@ export async function addUserNotification(
   return payload;
 }
 
-// Helper: read current actor name/email for attribution
-function getActorName(): string | null {
-  try {
-    const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
-    if (!raw) return null;
-    const u = JSON.parse(raw);
-    return u?.name || u?.email || u?.id || null;
-  } catch { return null; }
-}
-
 // Fan-out notifications to all users with the specified role (e.g., 'admin' or 'manager').
-// When Supabase is available, inserts one row per recipient user_id so it respects per-user RLS.
 export async function addRoleNotification(
   input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean },
   role: 'admin' | 'manager',
   opts?: { silent?: boolean }
 ): Promise<void> {
-  // In demo or without Supabase, fall back to a single local notification (best-effort)
-  if (!false || isDemoMode()) {
-    await addNotification(input, opts);
-    return;
-  }
   try {
-    // Prefer server-side RPC to bypass RLS and fan out securely
-    try {
-      const { error: rpcError } = await supabase.rpc('add_notifications_for_role_v1', {
-        p_title: input.title,
-        p_message: input.message,
-        p_type: input.type,
-        p_role: role,
-      } as any);
-      if (!rpcError) { try { if (!opts?.silent) playNotificationSound(); } catch {} ; return; }
-      console.warn('RPC add_notifications_for_role_v1 failed, attempting client-side insert...', rpcError);
-    } catch (e) {
-      console.warn('RPC add_notifications_for_role_v1 not available, attempting client-side insert...', e);
-    }
-    // Load recipients from app_users
+    // Get all users with the specified role
     const users = await listUsers();
-    const recipients = users.filter(u => (u.role || '').toLowerCase() === role && (u.status || '').toLowerCase() !== 'inactive');
-    if (!recipients.length) {
-      // No recipients found; still record a notification for the actor so there's traceability
-      await addNotification(input);
+    const targetUsers = users.filter(u => (u.role || '').toLowerCase() === role && (u.status || '').toLowerCase() === 'active');
+    
+    if (targetUsers.length === 0) {
+      // No users found, add notification for current user as fallback
+      await addNotification(input, opts);
       return;
     }
-    const actorName = getActorName();
-    const rows = recipients.map(r => ({
-      id: `NTF-${Math.floor(Math.random()*900000+100000)}`,
-      title: input.title,
-      message: input.message,
-      type: input.type,
-      read: input.read ?? false,
-      created_at: new Date().toISOString(),
-      user_id: r.id,
-      user_name: actorName,
-    }));
-    // Insert in one batch
-    const { error } = await supabase.from(table).insert(rows);
-    if (error) throw error;
-    // The sender gets a local beep as feedback that notifications were sent
+    
+    // Create notification for each user
+    for (const user of targetUsers) {
+      await addUserNotification(user.id, input, { silent: true });
+    }
+    
+    // Play sound once for the sender
     try { if (!opts?.silent) playNotificationSound(); } catch {}
-  } catch (e) {
-    console.warn('addRoleNotification failed, falling back to single notification', e);
+  } catch (error) {
+    console.warn("Failed to send role notifications via API, falling back to single notification", error);
+    // Fallback: add single notification for current user
     await addNotification(input, opts);
   }
 }
 
 export async function markAllRead(): Promise<void> {
-  if (!isDemoMode() && false) {
-    try {
-      const uid = getCurrentUserId();
-      if (!uid) return;
-      const { error } = await supabase.from(table).update({ read: true }).neq("read", true).eq('user_id', uid);
-      if (error) throw error;
+  try {
+    const userId = getCurrentUserId();
+    if (userId) {
+      await api.put('/notifications/mark-all-read', { user_id: userId });
+      // Update local cache
+      const list = loadLocal().map(n => ({ ...n, read: true }));
+      saveLocal(list);
       return;
-    } catch (e) {
-      console.warn("notifications markAllRead failed, falling back", e);
     }
+  } catch (error) {
+    console.warn("Failed to mark all notifications as read via API, using localStorage", error);
   }
+  
+  // Fallback to localStorage
   const list = loadLocal().map(n => ({ ...n, read: true }));
   saveLocal(list);
 }
 
 export async function clearAllNotifications(): Promise<void> {
-  if (!isDemoMode() && false) {
-    try {
-      const uid = getCurrentUserId();
-      if (!uid) return;
-      const { error } = await supabase.from(table).delete().eq('user_id', uid);
-      if (error) throw error;
+  try {
+    const userId = getCurrentUserId();
+    if (userId) {
+      await api.delete(`/notifications?user_id=${userId}`);
+      saveLocal([]);
       return;
-    } catch (e) {
-      console.warn("notifications clearAll failed, falling back", e);
     }
+  } catch (error) {
+    console.warn("Failed to clear notifications via API, using localStorage", error);
   }
+  
+  // Fallback to localStorage
   saveLocal([]);
 }

@@ -31,9 +31,6 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  optimizeDeps: {
-    exclude: ['@supabase/supabase-js'],
-  },
   build: {
     rollupOptions: {
       output: {
@@ -42,10 +39,6 @@ export default defineConfig(({ mode }) => ({
           charts: ["recharts"],
           lucide: ["lucide-react"],
         },
-      },
-      external: (id) => {
-        // Ignore Supabase package during build
-        return id === '@supabase/supabase-js' || id.startsWith('@supabase/');
       },
     },
   },

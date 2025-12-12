@@ -198,7 +198,7 @@ async function upgradeLocalHash(userId: string, password: string): Promise<void>
   writeLocalUsers(users);
 }
 
-// Removed Supabase auth functions - no longer needed
+// Authentication functions using PostgreSQL API
 
 export async function loginWithPassword(email: string, password: string): Promise<MinimalUser | null> {
   const normalized = normalizeEmail(email);

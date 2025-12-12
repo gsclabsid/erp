@@ -105,6 +105,17 @@ CREATE TABLE IF NOT EXISTS ticket_comments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Notifications table
+CREATE TABLE IF NOT EXISTS notifications (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id UUID REFERENCES app_users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50) DEFAULT 'system',
+    read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- QR Codes table
 CREATE TABLE IF NOT EXISTS qr_codes (
     id VARCHAR(255) PRIMARY KEY,
@@ -130,22 +141,52 @@ CREATE TABLE IF NOT EXISTS user_property_access (
     UNIQUE(user_id, property_id)
 );
 
--- Approvals table
+-- Approvals table (updated schema to match service requirements)
 CREATE TABLE IF NOT EXISTS approvals (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    type VARCHAR(50) NOT NULL,
-    entity_id VARCHAR(255) NOT NULL,
-    entity_type VARCHAR(50) NOT NULL,
-    requested_by UUID REFERENCES app_users(id) ON DELETE SET NULL,
+    id VARCHAR(255) PRIMARY KEY,
+    asset_id VARCHAR(255) REFERENCES assets(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending_manager',
+    requested_by VARCHAR(255) NOT NULL,
     requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) DEFAULT 'pending',
-    approved_by UUID REFERENCES app_users(id) ON DELETE SET NULL,
-    approved_at TIMESTAMP,
-    rejected_by UUID REFERENCES app_users(id) ON DELETE SET NULL,
-    rejected_at TIMESTAMP,
-    reason TEXT,
+    reviewed_by VARCHAR(255),
+    reviewed_at TIMESTAMP,
+    notes TEXT,
+    patch JSONB,
+    department VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Approval events table
+CREATE TABLE IF NOT EXISTS approval_events (
+    id VARCHAR(255) PRIMARY KEY,
+    approval_id VARCHAR(255) REFERENCES approvals(id) ON DELETE CASCADE,
+    event_type VARCHAR(50) NOT NULL,
+    author VARCHAR(255),
+    message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User permissions table
+CREATE TABLE IF NOT EXISTS user_permissions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES app_users(id) ON DELETE CASCADE,
+    page VARCHAR(50) NOT NULL,
+    can_view BOOLEAN DEFAULT false,
+    can_edit BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, page)
+);
+
+-- User department access table
+CREATE TABLE IF NOT EXISTS user_department_access (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES app_users(id) ON DELETE CASCADE,
+    department VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, department)
 );
 
 -- Activity log table
@@ -214,9 +255,18 @@ CREATE INDEX IF NOT EXISTS idx_tickets_created_by ON tickets(created_by);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket_id ON ticket_comments(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_qr_codes_asset_id ON qr_codes(asset_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
 CREATE INDEX IF NOT EXISTS idx_user_property_access_user_id ON user_property_access(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_log_user_id ON activity_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_approvals_asset_id ON approvals(asset_id);
+CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status);
+CREATE INDEX IF NOT EXISTS idx_approvals_requested_by ON approvals(requested_by);
+CREATE INDEX IF NOT EXISTS idx_approval_events_approval_id ON approval_events(approval_id);
+CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_department_access_user_id ON user_department_access(user_id);
 
 -- Insert default data
 INSERT INTO properties (id, name, address, type, status) 

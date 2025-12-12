@@ -326,7 +326,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
         </button>
         <button
           type="button"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/dashboard')}
           className="hidden md:inline-flex items-center justify-center rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           aria-label="Dashboard"
         >

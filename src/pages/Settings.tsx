@@ -263,7 +263,7 @@ export default function Settings() {
   const handleSave = async () => {
     try {
       // Validate default landing page against whitelist
-      const allowedLanding = new Set(["/", "/assets", "/properties", "/tickets", "/reports", "/newsletter", "/settings", "/approvals"]);
+      const allowedLanding = new Set(["/dashboard", "/assets", "/properties", "/tickets", "/reports", "/newsletter", "/settings", "/approvals"]);
       let landingToSave: string | null = (defaultLanding || "") || null;
       if (landingToSave && !allowedLanding.has(landingToSave)) {
         landingToSave = null; // coerce invalid to null (system default)
@@ -389,7 +389,7 @@ export default function Settings() {
 
   return (
     <div className="space-y-8 pb-10">
-      <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Settings" }]} />
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/dashboard" }, { label: "Settings" }]} />
 
       {/* Hero Section */}
       <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
@@ -692,7 +692,7 @@ export default function Settings() {
                                 <SelectValue placeholder="System Default (Dashboard)" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="/">Dashboard</SelectItem>
+                                <SelectItem value="/dashboard">Dashboard</SelectItem>
                                 <SelectItem value="/assets">Assets</SelectItem>
                                 <SelectItem value="/properties">Properties</SelectItem>
                                 {canSeeApprovals && <SelectItem value="/approvals">Approvals</SelectItem>}

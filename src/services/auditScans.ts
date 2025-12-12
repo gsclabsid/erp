@@ -19,34 +19,9 @@ export async function verifyAssetViaScan(params: {
   status: "verified" | "damaged";
   comment?: string | null;
 }): Promise<void> {
-  if (!false) throw new Error("NO_SUPABASE");
-  const userId = getCurrentUserId();
-  if (!userId) throw new Error("Not signed in");
-  const { error } = await supabase.rpc("verify_asset_via_scan_v1", {
-    p_session_id: params.sessionId,
-    p_asset_id: params.assetId,
-    p_status: params.status,
-    p_scanned_by: userId,
-    p_comment: params.comment ?? null,
-  } as any);
-  if (error) throw error;
+  throw new Error("Audit scans are not yet implemented with PostgreSQL API");
 }
 
 export async function listMyScansForSession(sessionId: string): Promise<AuditScan[]> {
-  if (!false) throw new Error("NO_SUPABASE");
-  const userId = getCurrentUserId();
-  if (!userId) return [];
-  const { data, error } = await supabase
-    .from("audit_scans")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("scanned_by", userId)
-    .order("scanned_at", { ascending: false });
-  if (error) throw error;
-  const scans = (data as any[]) as AuditScan[];
-  return scans.map((scan) => ({
-    ...scan,
-    scanned_by_name: scan.scanned_by_name ?? null,
-    scanned_by_email: scan.scanned_by_email ?? null,
-  }));
+  return [];
 }

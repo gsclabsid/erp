@@ -40,9 +40,6 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   } catch {}
   
   if (!authed) {
-    if (location.pathname === "/") {
-      return <Navigate to="/site" replace />;
-    }
     return <Navigate to={isDemoMode() ? "/demo/login" : "/login"} replace />;
   }
   return <>{children}</>;
@@ -71,6 +68,14 @@ function isAuthenticated() {
   }
 }
 
+function RootRedirect() {
+  const authed = isAuthenticated();
+  if (authed) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Navigate to="/login" replace />;
+}
+
 function AppShell() {
   return (
     <RequireAuth>
@@ -93,6 +98,8 @@ const App = () => (
   {/* SingleDeviceGuard removed */}
       <BrowserRouter>
         <Routes>
+          {/* Default route - redirect to login if not authenticated, dashboard if authenticated */}
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<Login />} />
           {/* Public minimal marketing website */}
           <Route path="/site" element={<Website />} />
@@ -102,7 +109,7 @@ const App = () => (
           {/* Public QR scan view: render asset details without auth or layout */}
           <Route path="/assets/:id" element={<AssetDetails />} />
           <Route element={<AppShell />}>
-            <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={<Index />} />
             <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />
             <Route path="/properties" element={<RequireView page="properties"><Properties /></RequireView>} />
             <Route path="/qr-codes" element={<RequireView page="qrcodes"><QRCodes /></RequireView>} />

@@ -178,8 +178,8 @@ export default function Tickets() {
 
       if (!fallbackNotifiedRef.current) {
         const fallback = localStorage.getItem("tickets_fallback_reason");
-        if (!false || fallback) {
-          toast.info("Supabase not configured or unreachable; tickets are saved locally.");
+        if (fallback) {
+          toast.info("API unavailable; tickets are saved locally.");
         }
         fallbackNotifiedRef.current = true;
       }
@@ -237,47 +237,8 @@ export default function Tickets() {
     }, 50);
   }, [location.search, items]);
 
-  useEffect(() => {
-    if (!false) return;
-    const authSnapshot = (() => {
-      try {
-        const raw =
-          (isDemoMode() ? sessionStorage.getItem("demo_auth_user") || localStorage.getItem("demo_auth_user") : null) ||
-          localStorage.getItem("auth_user");
-        return raw ? JSON.parse(raw) : null;
-      } catch {
-        return null;
-      }
-    })();
-    const roleValue = (authSnapshot?.role || "").toLowerCase();
-    const meId = (authSnapshot?.id || "").toLowerCase();
-    const meEmail = (authSnapshot?.email || "").toLowerCase();
-    const channel = supabase
-      .channel(`tickets_page_updates_${meId || meEmail || "anon"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, (payload) => {
-        const matchesScope = (record: any) => {
-          if (!record) return false;
-          const assignee = String(record.assignee || "").toLowerCase();
-          const createdBy = String(record.created_by || "").toLowerCase();
-          const targetRole = String(record.target_role || "").toLowerCase();
-          const assignedToMe =
-            (!!meId && assignee === meId) || (!!meEmail && assignee === meEmail);
-          const createdByMe =
-            (!!meId && createdBy === meId) || (!!meEmail && createdBy === meEmail);
-          if (roleValue === "admin" || roleValue === "manager") {
-            return assignedToMe || createdByMe || targetRole === roleValue;
-          }
-          return createdByMe;
-        };
-        if (matchesScope(payload?.new) || matchesScope(payload?.old)) {
-          setRefreshKey((prev) => prev + 1);
-        }
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  // Real-time updates removed - using PostgreSQL API instead of Supabase
+  // Tickets will refresh when the page is reloaded or when manually refreshed
 
   const add = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -298,7 +259,11 @@ export default function Tickets() {
       setAssigneeId("");
       // keep property selected
       const fallback = localStorage.getItem('tickets_fallback_reason');
-      if (false && !fallback) toast.success('Ticket created'); else toast.info('Ticket saved locally (Supabase not configured)');
+      if (!fallback) {
+        toast.success('Ticket created');
+      } else {
+        toast.info('Ticket saved locally (API unavailable)');
+      }
       try {
         if (localStorage.getItem('ticket_draft_license_upgrade')) {
           localStorage.removeItem('ticket_draft_license_upgrade');

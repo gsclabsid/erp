@@ -32,24 +32,7 @@ export async function listReports(): Promise<Report[]> {
       return [];
     }
   }
-  if (!false) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
-  if (error) throw error;
-  const list = (data ?? []) as Report[];
-  // Enrich with local meta if DB lacks columns
-  try {
-    const raw = localStorage.getItem('report_meta');
-    const meta = raw ? JSON.parse(raw) as Record<string, { created_by?: string|null; created_by_id?: string|null }> : {};
-    return list.map(r => {
-      if (r && !r.created_by && (meta as any)[r.id]) {
-        const m = (meta as any)[r.id];
-        return { ...r, created_by: m.created_by ?? null, created_by_id: m.created_by_id ?? null } as Report;
-      }
-      return r;
-    });
-  } catch {
-    return list;
-  }
+  return [];
 }
 
 export async function createReport(payload: Omit<Report, "id" | "created_at">): Promise<Report> {
@@ -78,54 +61,7 @@ export async function createReport(payload: Omit<Report, "id" | "created_at">): 
     } catch {}
     return report;
   }
-  if (!false) throw new Error("NO_SUPABASE");
-  // Attempt insert with all fields; if columns are missing in DB, retry without filter_* fields
-  let result = await supabase.from(table).insert(payload).select().single();
-  if (result.error) {
-    const msg = (result.error.message || '').toString();
-    const code = (result.error as any).code || '';
-    const looksLikeMissingColumn = /column .* does not exist/i.test(msg) || /(filter_(session_id|department|property|asset_type)|created_by(_id)?)/i.test(msg) || code === '42703';
-    if (looksLikeMissingColumn) {
-      const cleaned: any = { ...payload };
-      delete cleaned.filter_session_id;
-      delete cleaned.filter_department;
-      delete cleaned.filter_property;
-      delete cleaned.filter_asset_type;
-      delete cleaned.created_by;
-      delete cleaned.created_by_id;
-      const retry = await supabase.from(table).insert(cleaned).select().single();
-      if (retry.error) throw retry.error;
-      const rpt = retry.data as Report;
-      // persist creator meta locally so UI can show names
-      try {
-        const raw = localStorage.getItem('report_meta');
-        const meta = raw ? JSON.parse(raw) : {};
-        if (rpt?.id && (payload as any).created_by) {
-          meta[rpt.id] = {
-            created_by: (payload as any).created_by ?? null,
-            created_by_id: (payload as any).created_by_id ?? null,
-          };
-          localStorage.setItem('report_meta', JSON.stringify(meta));
-        }
-      } catch {}
-      return rpt;
-    }
-    throw result.error;
-  }
-  const rpt = result.data as Report;
-  // persist creator meta locally so UI can show names even if DB lacks columns
-  try {
-    const raw = localStorage.getItem('report_meta');
-    const meta = raw ? JSON.parse(raw) : {};
-    if (rpt?.id && (payload as any).created_by) {
-      meta[rpt.id] = {
-        created_by: (payload as any).created_by ?? null,
-        created_by_id: (payload as any).created_by_id ?? null,
-      };
-      localStorage.setItem('report_meta', JSON.stringify(meta));
-    }
-  } catch {}
-  return rpt;
+  throw new Error("Reports API not yet implemented with PostgreSQL");
 }
 
 export async function clearReports(): Promise<void> {
@@ -133,16 +69,6 @@ export async function clearReports(): Promise<void> {
     try { localStorage.setItem('demo_reports', JSON.stringify([])); } catch {}
     return;
   }
-  if (!false) {
-    // No backend configured; treat as no-op so UI can proceed without an error
-    try { localStorage.removeItem('report_meta'); } catch {}
-    return;
-  }
-  let { error } = await supabase.from(table).delete().neq('id', '');
-  if (error) {
-    // Try RPC with SECURITY DEFINER function as a fallback
-    const rpc = await supabase.rpc('delete_all_reports');
-    if (rpc.error) throw rpc.error;
-  }
+  // No-op: reports API not yet implemented
   try { localStorage.removeItem('report_meta'); } catch {}
 }

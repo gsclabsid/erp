@@ -48,7 +48,7 @@ function getDashboardUrl(): string {
 }
 
 /**
- * Send email via Supabase Edge Function
+ * Send email via API endpoint
  * This calls a backend function to handle actual email sending
  */
 export async function sendEmail(params: SendEmailParams): Promise<boolean> {
@@ -107,40 +107,16 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
  * Check if user has email notifications enabled
  */
 async function shouldSendEmailToUser(userId: string): Promise<boolean> {
-  try {
-    if (!false) return false;
-    
-    const { data, error } = await supabase
-      .from("user_settings")
-      .select("email_notifications")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (error || !data) return true; // Default to enabled if not set
-    return data.email_notifications !== false;
-  } catch {
-    return true; // Default to enabled on error
-  }
+  // Default to enabled - email notification preferences not yet implemented with PostgreSQL API
+  return true;
 }
 
 /**
  * Get user email by ID
  */
 async function getUserEmail(userId: string): Promise<string | null> {
-  try {
-    if (!false) return null;
-    
-    const { data, error } = await supabase
-      .from("app_users")
-      .select("email")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (error || !data) return null;
-    return data.email;
-  } catch {
-    return null;
-  }
+  // User email lookup not yet implemented with PostgreSQL API
+  return null;
 }
 
 // ====================
@@ -537,29 +513,8 @@ export async function sendPasswordResetCodeEmail(params: {
 // ====================
 
 export async function getAdminEmails(): Promise<string[]> {
-  try {
-    if (!false) return [];
-    
-    const { data, error } = await supabase
-      .from("app_users")
-      .select("email, id")
-      .eq("role", "admin")
-      .eq("status", "active");
-
-    if (error || !data) return [];
-
-    const emails: string[] = [];
-    for (const user of data) {
-      if (user.email) {
-        const shouldSend = await shouldSendEmailToUser(user.id);
-        if (shouldSend) emails.push(user.email);
-      }
-    }
-
-    return emails;
-  } catch {
-    return [];
-  }
+  // Admin email lookup not yet implemented with PostgreSQL API
+  return [];
 }
 
 // ====================
@@ -567,35 +522,8 @@ export async function getAdminEmails(): Promise<string[]> {
 // ====================
 
 export async function getManagerEmails(department?: string): Promise<string[]> {
-  try {
-    if (!false) return [];
-    
-    let query = supabase
-      .from("app_users")
-      .select("email, id")
-      .eq("role", "manager")
-      .eq("status", "active");
-
-    if (department) {
-      query = query.eq("department", department);
-    }
-
-    const { data, error } = await query;
-
-    if (error || !data) return [];
-
-    const emails: string[] = [];
-    for (const user of data) {
-      if (user.email) {
-        const shouldSend = await shouldSendEmailToUser(user.id);
-        if (shouldSend) emails.push(user.email);
-      }
-    }
-
-    return emails;
-  } catch {
-    return [];
-  }
+  // Manager email lookup not yet implemented with PostgreSQL API
+  return [];
 }
 
 // ====================
@@ -603,26 +531,6 @@ export async function getManagerEmails(department?: string): Promise<string[]> {
 // ====================
 
 export async function getAllUserEmails(): Promise<string[]> {
-  try {
-    if (!false) return [];
-    
-    const { data, error } = await supabase
-      .from("app_users")
-      .select("email, id")
-      .eq("status", "active");
-
-    if (error || !data) return [];
-
-    const emails: string[] = [];
-    for (const user of data) {
-      if (user.email) {
-        const shouldSend = await shouldSendEmailToUser(user.id);
-        if (shouldSend) emails.push(user.email);
-      }
-    }
-
-    return emails;
-  } catch {
-    return [];
-  }
+  // User email lookup not yet implemented with PostgreSQL API
+  return [];
 }
