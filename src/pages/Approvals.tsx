@@ -197,58 +197,8 @@ export default function Approvals() {
     })();
   }, [selectedId]);
 
-  useEffect(() => {
-    if (!false) return;
-    const channel = supabase
-      .channel(`approvals_page_updates_${myIdentity || "anon"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "approvals" }, (payload) => {
-        const matchesStatus = (status?: string | null) => {
-          const normalized = (status || "").toLowerCase();
-          if (statusFilter === "all") return true;
-          if (statusFilter === "approved") return normalized === "approved";
-          if (statusFilter === "rejected") return normalized === "rejected";
-          if (statusFilter === "pending") {
-            if (role === "admin") {
-              return normalized === "pending_admin" || normalized === "pending_manager";
-            }
-            if (role === "manager") {
-              return normalized === "pending_manager";
-            }
-            return normalized === "pending_admin" || normalized === "pending_manager";
-          }
-          return false;
-        };
-        const matchesScope = (record: any) => {
-          if (!record) return false;
-          if (!matchesStatus(record.status)) return false;
-          const dept = String(record.department || "").toLowerCase();
-          if (role === "admin") {
-            if (adminDeptFilter && adminDeptFilter !== "ALL") {
-              return dept === adminDeptFilter.toLowerCase();
-            }
-            return true;
-          }
-          if (role === "manager") {
-            if (!myDept) return false;
-            return dept === myDept.toLowerCase();
-          }
-          const requester = String(record.requested_by || "").toLowerCase();
-          return (
-            (!!myEmail && requester === myEmail) ||
-            (!!myUserId && requester === myUserId) ||
-            (!!myIdentity && requester === myIdentity)
-          );
-        };
-        const relevant = matchesScope(payload?.new) || matchesScope(payload?.old);
-        if (relevant) {
-          setRefreshKey((prev) => prev + 1);
-        }
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [role, statusFilter, adminDeptFilter, myDept, myEmail, myUserId, myIdentity]);
+  // Real-time updates removed - using PostgreSQL API instead of Supabase
+  // Approvals will refresh when the page is reloaded or when manually refreshed
 
   const onForward = async (id: string) => {
     try {

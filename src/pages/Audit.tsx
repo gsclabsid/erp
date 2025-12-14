@@ -540,55 +540,8 @@ export default function Audit() {
     })();
   }, [refreshKey]);
 
-  useEffect(() => {
-    if (!false) return;
-    const deptLower = (role === "admin" ? adminDept : department).toLowerCase();
-    const propertyLower = String(selectedPropertyId || "").toLowerCase();
-    const userLower = (myId || "").toLowerCase();
-    const matchesRecord = (record: any) => {
-      if (!record) return false;
-      if (deptLower) {
-        const recDept = String(record.department || record.dept || record.department_name || "").toLowerCase();
-        if (recDept && recDept !== deptLower) {
-          return false;
-        }
-      }
-      if (propertyLower) {
-        const recProp = String(record.property_id || record.propertyId || record.property || "").toLowerCase();
-        if (recProp && recProp !== propertyLower) {
-          return false;
-        }
-      }
-      if (userLower) {
-        const assignedTo = String(
-          record.assigned_to || record.user_id || record.reviewer_id || record.updated_by || record.created_by || ""
-        ).toLowerCase();
-        if (assignedTo && assignedTo === userLower) {
-          return true;
-        }
-      }
-      return true;
-    };
-    const shouldRefresh = (payload: any) => matchesRecord(payload?.new) || matchesRecord(payload?.old);
-    const channel = supabase
-      .channel(`audit_page_updates_${userLower || "viewer"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "audit_sessions" }, (payload) => {
-        if (shouldRefresh(payload)) setRefreshKey((prev) => prev + 1);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "audit_assignments" }, (payload) => {
-        if (shouldRefresh(payload)) setRefreshKey((prev) => prev + 1);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "audit_reviews" }, (payload) => {
-        if (shouldRefresh(payload)) setRefreshKey((prev) => prev + 1);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "audit_reports" }, (payload) => {
-        if (shouldRefresh(payload)) setRefreshKey((prev) => prev + 1);
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [role, department, adminDept, selectedPropertyId, myId]);
+  // Real-time updates removed - using PostgreSQL API instead of Supabase
+  // Audit data will refresh when the page is reloaded or when manually refreshed
 
   // Load my scan history when session becomes available
   useEffect(() => {

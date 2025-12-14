@@ -278,16 +278,10 @@ export default function Properties() {
     });
     if (!verified) return;
     try {
-      if (isSupabase) {
-        await sbDeleteProperty(propertyId);
-        setProperties(prev => prev.filter(p => p.id !== propertyId));
-        toast.success(`Property ${propertyId} deleted`);
-        await logActivity("property_deleted", `Property ${propertyId} deleted`);
-      } else {
-        setProperties(prev => prev.filter(p => p.id !== propertyId));
-        toast.info("Supabase not configured; deleted locally only");
-        await logActivity("property_deleted", `Property ${propertyId} deleted (local)`, "Local");
-      }
+      await sbDeleteProperty(propertyId);
+      setProperties(prev => prev.filter(p => p.id !== propertyId));
+      toast.success(`Property ${propertyId} deleted`);
+      await logActivity("property_deleted", `Property ${propertyId} deleted`);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to delete property");
@@ -309,45 +303,33 @@ export default function Properties() {
         });
         if (!verified) return;
       }
-      if (isSupabase) {
-        if (editingId) {
-          await sbUpdateProperty(editingId, {
-            // do not update primary key id to avoid FK issues
-            name: form.name,
-            address: form.address,
-            type: form.type,
-            status: form.status,
-            manager: form.manager,
-          });
-          setProperties(prev => prev.map((p: any) => p.id === editingId ? { ...p, ...form, id: editingId } : p));
-          toast.success("Property updated");
-          await logActivity("property_updated", `Property ${editingId} updated`);
-        } else {
-          const created = await sbCreateProperty({
-            id,
-            name: form.name,
-            address: form.address,
-            type: form.type,
-            status: form.status,
-            manager: form.manager,
-          } as Property);
-          setProperties(prev => [
-            ...prev,
-            { ...created, assetCount: 0, userCount: 0 }
-          ]);
-          toast.success("Property created");
-          await logActivity("property_created", `Property ${id} created`);
-        }
+      if (editingId) {
+        await sbUpdateProperty(editingId, {
+          // do not update primary key id to avoid FK issues
+          name: form.name,
+          address: form.address,
+          type: form.type,
+          status: form.status,
+          manager: form.manager,
+        });
+        setProperties(prev => prev.map((p: any) => p.id === editingId ? { ...p, ...form, id: editingId } : p));
+        toast.success("Property updated");
+        await logActivity("property_updated", `Property ${editingId} updated`);
       } else {
-        if (editingId) {
-          setProperties(prev => prev.map((p: any) => p.id === editingId ? { ...p, ...form, id: editingId } : p));
-          toast.info("Updated locally (no Supabase)");
-          await logActivity("property_updated", `Property ${editingId} updated (local)`, "Local");
-        } else {
-          setProperties(prev => [...prev, { ...form, id, assetCount: 0, userCount: 0 }]);
-          toast.info("Created locally (no Supabase)");
-          await logActivity("property_created", `Property ${id} created (local)`, "Local");
-        }
+        const created = await sbCreateProperty({
+          id,
+          name: form.name,
+          address: form.address,
+          type: form.type,
+          status: form.status,
+          manager: form.manager,
+        } as Property);
+        setProperties(prev => [
+          ...prev,
+          { ...created, assetCount: 0, userCount: 0 }
+        ]);
+        toast.success("Property created");
+        await logActivity("property_created", `Property ${id} created`);
       }
       setIsDialogOpen(false);
       setEditingId(null);
@@ -775,22 +757,7 @@ export default function Properties() {
           </Card>
         </div>
 
-        {/* Backend Connection Notice */}
-        {!isSupabase && (
-          <Card className="border-warning/50 bg-warning/5">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <Building2 className="h-6 w-6 text-warning shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-foreground">Property Management Features</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Connect Supabase to persist properties and relationships.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Properties are now persisted in PostgreSQL database */}
 
         {/* Add/Edit Property Dialog */}
   <Dialog open={isDialogOpen && canEditPage} onOpenChange={setIsDialogOpen}>

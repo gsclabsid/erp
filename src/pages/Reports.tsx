@@ -174,7 +174,7 @@ export default function Reports() {
   const [tkTo, setTkTo] = useState<Date | undefined>();
 
   // Load properties, item types, and recent reports
-  // When Supabase is enabled, pull live data; else use light fallbacks
+  // Using PostgreSQL API for all data operations
   useEffect(() => {
     (async () => {
       // Load allowed property IDs for current user
@@ -194,8 +194,7 @@ export default function Reports() {
       }
       setAllowedProps(allowed);
       try {
-
-    if (false || isDemoMode()) {
+        if (!isDemoMode()) {
           const [props, types] = await Promise.all([
             listProperties().catch(() => []),
             listItemTypes().catch(() => []),
@@ -231,7 +230,7 @@ export default function Reports() {
         console.error(e);
       }
       try {
-  if (false || isDemoMode()) {
+        if (!isDemoMode()) {
           const reports = await listReports();
           setRecentReports(scopeRecentReports(reports, allowed));
         } else {
@@ -242,7 +241,7 @@ export default function Reports() {
       }
       // Load audit sessions for audit-review report
       try {
-        if (false || isDemoMode()) {
+        if (!isDemoMode()) {
           const sess = await listSessions(200);
           const scoped = isAdmin
             ? (sess || [])
@@ -374,8 +373,8 @@ export default function Reports() {
       email: emailReport
     };
 
-  try {
-  if (false || isDemoMode()) {
+    try {
+      if (!isDemoMode()) {
         const displayName = `${reportTypes.find(r => r.id === selectedReportType)?.name}${selectedReportType === 'audit-review' ? (selectedAuditSessionId ? ` - Session ${selectedAuditSessionId}` : '') : ''}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`;
         await createReport({
           name: displayName,
@@ -512,7 +511,7 @@ export default function Reports() {
         downloadCsvFromRows(`${report?.name || 'Report'} - ${new Date().toISOString().slice(0,10)}`, rows);
       }
       // Log the quick report for Recent Reports with filter metadata
-      if (false || isDemoMode()) {
+      if (!isDemoMode()) {
         try {
           await createReport({
             name: `${report?.name}${(reportType === 'department-wise' && deptForReport && deptForReport !== 'ALL') ? ` - ${deptForReport}` : ''} - ${new Date().toISOString().slice(0,10)}`,
@@ -563,7 +562,7 @@ export default function Reports() {
       const name = `Audit Review Report - Session ${sid}${(dep ? ` - ${dep}` : '')} - ${new Date().toISOString().slice(0,10)}`;
       downloadCsvFromRows(name, rows);
       // Log recent report
-      if (false || isDemoMode()) {
+      if (!isDemoMode()) {
         try {
           await createReport({
             name,
@@ -739,7 +738,7 @@ export default function Reports() {
   // Build rows for Audit Review Report from audit_reviews
   async function buildAuditRows(sessionId: string, department?: string, propertyId?: string): Promise<any[]> {
     try {
-      if (!(false || isDemoMode())) return [];
+      if (isDemoMode()) return [];
       const reviews = await listReviewsForSession(sessionId).catch(() => []);
       // Resolve session property to use as a fallback when asset metadata is unavailable due to RLS
       let sessionPropertyId: string | null = null;
@@ -1420,7 +1419,7 @@ export default function Reports() {
                           if (!fresh || fresh.length === 0) {
                             toast.success('Recent report logs cleared');
                           } else {
-                            toast.error('Could not clear all logs. Check Supabase RLS/policies.');
+                            toast.error('Could not clear all logs. Check database permissions.');
                           }
                         } catch {
                           setRecentReports([]);
@@ -1684,23 +1683,7 @@ export default function Reports() {
           </Card>
         )}
 
-        {(!false) && (
-          <Card className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50 shadow-sm dark:border-amber-800 dark:from-amber-950/30 dark:to-amber-900/10">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400">
-                  <FileBarChart className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">Advanced Reporting Features</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Connect Supabase to enable persisted reports, scheduling, and email delivery.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Reports are now persisted in PostgreSQL database */}
     </div>
   );
 }

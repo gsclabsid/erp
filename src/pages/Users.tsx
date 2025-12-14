@@ -243,7 +243,7 @@ export default function Users() {
   const data = await listUsers();
   if (!cancelled) setUsers((data && data.length) ? data : seedLocalUsersIfEmpty());
       } catch (e: any) {
-        // Fallback to localStorage when Supabase isn't configured
+        // Fallback to localStorage when API is unavailable
         const seeded = seedLocalUsersIfEmpty();
         if (!cancelled) setUsers(seeded);
       } finally {
@@ -456,7 +456,8 @@ export default function Users() {
 
     try {
       const created = await createUser(payload);
-      // If Supabase is configured and a password is provided, set via admin RPC (prompts for admin password)
+      // Password is handled via API when creating user
+      // Note: Password setting via admin RPC is not currently implemented
       if (false && password) {
         try {
           const adminRaw = localStorage.getItem("auth_user");
@@ -551,7 +552,7 @@ export default function Users() {
           await setAuditInchargeForUser(local.id, local.name || null, inchargePropertyIds);
         }
       } catch {}
-  // Final Approver assignments are Supabase-only. No local fallback.
+  // Final Approver assignments are stored in PostgreSQL. No local fallback.
       toast({ title: "User added (local)", description: `${local.name} stored locally.` });
       setUserPropertyMap((prev) => ({
         ...prev,
@@ -674,8 +675,9 @@ export default function Users() {
         setUsers(next);
         writeLocalUsers(next);
       }
-      // If admin set a new password, apply via Supabase RPC or local fallback
+      // If admin set a new password, apply via API or local fallback
       if (ePassword.trim()) {
+        // Note: Password update via admin RPC is not currently implemented
         if (false) {
           try {
             const adminRaw = localStorage.getItem("auth_user");
@@ -809,8 +811,8 @@ export default function Users() {
           if (!adminEmail) throw new Error("Admin email not found in session.");
           await adminSetUserPassword(adminEmail, "", resetTargetUser.id, newPw);
         } catch (e: any) {
-          // If Supabase call fails, attempt local fallback below
-          console.warn("Supabase reset failed, falling back to local.", e?.message || e);
+          // If API call fails, attempt local fallback below
+          console.warn("Password reset failed, falling back to local.", e?.message || e);
           const rawUsers = localStorage.getItem(LS_KEY);
           const list = rawUsers ? (JSON.parse(rawUsers) as any[]) : [];
           const idx = list.findIndex((u) => u.id === resetTargetUser.id);

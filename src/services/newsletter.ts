@@ -1,4 +1,5 @@
 import { isDemoMode } from "@/lib/demo";
+import { api } from "@/lib/api";
 import { sendNewsletterEmail, getAllUserEmails } from "@/services/email";
 
 export type NewsletterPost = {
@@ -58,9 +59,8 @@ export async function listNewsletterCategories(): Promise<NewsletterCategory[]> 
 }
 
 export async function listNewsletterPosts(limit = 20): Promise<NewsletterPost[]> {
-  // Demo/local fallback: seed a few example posts the first time
-  try {
-    if (isDemoMode()) {
+  if (isDemoMode()) {
+    try {
       const cur = loadLocal();
       if (!cur.length) {
         const now = Date.now();
@@ -72,21 +72,28 @@ export async function listNewsletterPosts(limit = 20): Promise<NewsletterPost[]>
         ];
         saveLocal(seed);
       }
-    }
-  } catch {}
-  if (isDemoMode()) {
+    } catch {}
     return loadLocal()
       .filter(p => p.published)
       .sort((a,b) => (a.created_at < b.created_at ? 1 : -1))
       .slice(0, limit);
   }
-  return [];
+  
+  try {
+    const posts = await api.get<NewsletterPost[]>(`/newsletter-posts?published=true&limit=${limit}`);
+    return posts;
+  } catch (e) {
+    console.warn("Newsletter API unavailable, using localStorage", e);
+    return loadLocal()
+      .filter(p => p.published)
+      .sort((a,b) => (a.created_at < b.created_at ? 1 : -1))
+      .slice(0, limit);
+  }
 }
 
 export async function listAllNewsletterPosts(limit = 200): Promise<NewsletterPost[]> {
-  // Demo/local: ensure demo seed
-  try {
-    if (isDemoMode()) {
+  if (isDemoMode()) {
+    try {
       const cur = loadLocal();
       if (!cur.length) {
         const now = Date.now();
@@ -98,12 +105,17 @@ export async function listAllNewsletterPosts(limit = 200): Promise<NewsletterPos
         ];
         saveLocal(seed);
       }
-    }
-  } catch {}
-  if (isDemoMode()) {
+    } catch {}
     return loadLocal().sort((a,b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, limit);
   }
-  return [];
+  
+  try {
+    const posts = await api.get<NewsletterPost[]>(`/newsletter-posts?limit=${limit}`);
+    return posts;
+  } catch (e) {
+    console.warn("Newsletter API unavailable, using localStorage", e);
+    return loadLocal().sort((a,b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, limit);
+  }
 }
 
 export async function createNewsletterPost(input: { title: string; body: string; category?: string; published?: boolean; author?: string | null }): Promise<NewsletterPost> {
@@ -117,9 +129,20 @@ export async function createNewsletterPost(input: { title: string; body: string;
     updated_at: null,
     category: input.category || 'release_notes',
   };
-  // Newsletter API not yet implemented - save to localStorage
-  const list = loadLocal();
-  saveLocal([payload, ...list]);
+  
+  if (isDemoMode()) {
+    const list = loadLocal();
+    saveLocal([payload, ...list]);
+  } else {
+    try {
+      const created = await api.post<NewsletterPost>('/newsletter-posts', payload);
+      payload.id = created.id;
+    } catch (e) {
+      console.warn("Newsletter API unavailable, using localStorage", e);
+      const list = loadLocal();
+      saveLocal([payload, ...list]);
+    }
+  }
   
   // Send email notification if published
   if (payload.published) {
@@ -143,21 +166,49 @@ export async function createNewsletterPost(input: { title: string; body: string;
 }
 
 export async function updateNewsletterPost(id: string, patch: Partial<Pick<NewsletterPost,'title'|'body'|'published'|'category'>>): Promise<NewsletterPost> {
-  // Newsletter API not yet implemented - save to localStorage
-  const list = loadLocal();
-  const idx = list.findIndex(p => p.id === id);
-  if (idx >= 0) {
-    const next = { ...list[idx], ...patch, updated_at: new Date().toISOString() } as NewsletterPost;
-    const copy = [...list];
-    copy[idx] = next;
-    saveLocal(copy);
-    return next;
+  if (isDemoMode()) {
+    const list = loadLocal();
+    const idx = list.findIndex(p => p.id === id);
+    if (idx >= 0) {
+      const next = { ...list[idx], ...patch, updated_at: new Date().toISOString() } as NewsletterPost;
+      const copy = [...list];
+      copy[idx] = next;
+      saveLocal(copy);
+      return next;
+    }
+    throw new Error('Not found');
   }
-  throw new Error('Not found');
+  
+  try {
+    const updated = await api.put<NewsletterPost>(`/newsletter-posts/${id}`, patch);
+    return updated;
+  } catch (e) {
+    console.warn("Newsletter API unavailable, using localStorage", e);
+    const list = loadLocal();
+    const idx = list.findIndex(p => p.id === id);
+    if (idx >= 0) {
+      const next = { ...list[idx], ...patch, updated_at: new Date().toISOString() } as NewsletterPost;
+      const copy = [...list];
+      copy[idx] = next;
+      saveLocal(copy);
+      return next;
+    }
+    throw new Error('Not found');
+  }
 }
 
 export async function deleteNewsletterPost(id: string): Promise<void> {
-  // Newsletter API not yet implemented - delete from localStorage
-  const list = loadLocal();
-  saveLocal(list.filter(p => p.id !== id));
+  if (isDemoMode()) {
+    const list = loadLocal();
+    saveLocal(list.filter(p => p.id !== id));
+    return;
+  }
+  
+  try {
+    await api.delete(`/newsletter-posts/${id}`);
+  } catch (e) {
+    console.warn("Newsletter API unavailable, using localStorage", e);
+    const list = loadLocal();
+    saveLocal(list.filter(p => p.id !== id));
+  }
 }

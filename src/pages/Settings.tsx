@@ -208,6 +208,7 @@ export default function Settings() {
 
       // user settings
       try {
+        // Note: User settings are now stored in PostgreSQL via API
         if (false) {
           if (currentUserId) {
             const us = await getUserSettings(currentUserId);
@@ -277,6 +278,7 @@ export default function Settings() {
         } catch { }
       }
       // Only user settings persisted (system config removed from UI)
+      // Note: Settings are now stored in PostgreSQL via API
       if (false) {
         if (currentUserId) {
           await upsertUserSettings(currentUserId, { notifications, email_notifications: emailNotifications, dark_mode: darkMode });

@@ -248,6 +248,116 @@ CREATE TABLE IF NOT EXISTS licenses (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Reports table
+CREATE TABLE IF NOT EXISTS reports (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(100) NOT NULL,
+    format VARCHAR(50) DEFAULT 'csv',
+    status VARCHAR(50) DEFAULT 'completed',
+    date_from DATE,
+    date_to DATE,
+    file_url TEXT,
+    filter_session_id VARCHAR(255),
+    filter_department VARCHAR(255),
+    filter_property VARCHAR(255),
+    filter_asset_type VARCHAR(255),
+    created_by VARCHAR(255),
+    created_by_id UUID REFERENCES app_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Newsletter posts table
+CREATE TABLE IF NOT EXISTS newsletter_posts (
+    id VARCHAR(255) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    category VARCHAR(50) DEFAULT 'release_notes',
+    published BOOLEAN DEFAULT true,
+    author VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+-- Ticket attachments table
+CREATE TABLE IF NOT EXISTS ticket_attachments (
+    id VARCHAR(255) PRIMARY KEY,
+    ticket_id VARCHAR(255) REFERENCES tickets(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    url TEXT NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    uploaded_by VARCHAR(255)
+);
+
+-- Audit sessions table
+CREATE TABLE IF NOT EXISTS audit_sessions (
+    id VARCHAR(255) PRIMARY KEY,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    frequency_months INTEGER DEFAULT 1,
+    initiated_by VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    property_id VARCHAR(255) REFERENCES properties(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Audit assignments table
+CREATE TABLE IF NOT EXISTS audit_assignments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id VARCHAR(255) REFERENCES audit_sessions(id) ON DELETE CASCADE,
+    department VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    submitted_at TIMESTAMP,
+    submitted_by VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, department)
+);
+
+-- Audit reviews table
+CREATE TABLE IF NOT EXISTS audit_reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id VARCHAR(255) REFERENCES audit_sessions(id) ON DELETE CASCADE,
+    asset_id VARCHAR(255) REFERENCES assets(id) ON DELETE CASCADE,
+    department VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'verified',
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, asset_id, department)
+);
+
+-- Audit reports table
+CREATE TABLE IF NOT EXISTS audit_reports (
+    id VARCHAR(255) PRIMARY KEY,
+    session_id VARCHAR(255) REFERENCES audit_sessions(id) ON DELETE CASCADE,
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    generated_by VARCHAR(255),
+    summary JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Audit scans table
+CREATE TABLE IF NOT EXISTS audit_scans (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id VARCHAR(255) REFERENCES audit_sessions(id) ON DELETE CASCADE,
+    asset_id VARCHAR(255) REFERENCES assets(id) ON DELETE CASCADE,
+    scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    scanned_by VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'scanned'
+);
+
+-- Final approvers table
+CREATE TABLE IF NOT EXISTS final_approvers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    property_id VARCHAR(255) REFERENCES properties(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES app_users(id) ON DELETE CASCADE,
+    user_name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(property_id)
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_app_users_email ON app_users(email);
 CREATE INDEX IF NOT EXISTS idx_assets_property_id ON assets(property_id);
@@ -267,6 +377,18 @@ CREATE INDEX IF NOT EXISTS idx_approvals_requested_by ON approvals(requested_by)
 CREATE INDEX IF NOT EXISTS idx_approval_events_approval_id ON approval_events(approval_id);
 CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_department_access_user_id ON user_department_access(user_id);
+CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at);
+CREATE INDEX IF NOT EXISTS idx_newsletter_posts_created_at ON newsletter_posts(created_at);
+CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_audit_sessions_property_id ON audit_sessions(property_id);
+CREATE INDEX IF NOT EXISTS idx_audit_sessions_is_active ON audit_sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_audit_assignments_session_id ON audit_assignments(session_id);
+CREATE INDEX IF NOT EXISTS idx_audit_reviews_session_id ON audit_reviews(session_id);
+CREATE INDEX IF NOT EXISTS idx_audit_reviews_asset_id ON audit_reviews(asset_id);
+CREATE INDEX IF NOT EXISTS idx_audit_reports_session_id ON audit_reports(session_id);
+CREATE INDEX IF NOT EXISTS idx_audit_scans_session_id ON audit_scans(session_id);
+CREATE INDEX IF NOT EXISTS idx_final_approvers_property_id ON final_approvers(property_id);
+CREATE INDEX IF NOT EXISTS idx_final_approvers_user_id ON final_approvers(user_id);
 
 -- Insert default data
 INSERT INTO properties (id, name, address, type, status) 

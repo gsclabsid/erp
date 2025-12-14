@@ -1,5 +1,6 @@
 import { isDemoMode } from "@/lib/demo";
 import { getCurrentUserId } from "@/services/permissions";
+import { api } from "@/lib/api";
 
 export type Activity = {
   id: number;
@@ -56,19 +57,35 @@ export async function listActivity(limit = 20): Promise<Activity[]> {
       .slice(0, limit);
     return data;
   }
-  return [];
+  
+  try {
+    const activities = await api.get<Activity[]>(`/activity?limit=${limit}`);
+    return activities.map((a: any) => ({
+      id: a.id || 0,
+      type: a.action || a.type || 'system',
+      message: a.details?.message || a.message || '',
+      user_name: a.user_name || null,
+      created_at: a.created_at || new Date().toISOString(),
+    }));
+  } catch (e) {
+    console.warn("Activity API unavailable, using empty list", e);
+    return [];
+  }
 }
 
 export async function logActivity(type: string, message: string, user_name?: string | null) {
   // Derive a sensible default actor label when not explicitly provided
   let derivedName: string | null = null;
+  let userId: string | null = null;
   try {
     const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
     if (raw) {
       const u = JSON.parse(raw);
       derivedName = u?.name || u?.email || u?.id || null;
+      userId = u?.id || null;
     }
   } catch {}
+  
   if (isDemoMode()) {
     const list = loadDemoActivity();
     const next: Activity = {
@@ -81,7 +98,19 @@ export async function logActivity(type: string, message: string, user_name?: str
     saveDemoActivity([next, ...list]);
     return;
   }
-  // Activity logging not yet implemented with PostgreSQL API
+  
+  try {
+    await api.post('/activity', {
+      user_id: userId,
+      action: type,
+      entity_type: null,
+      entity_id: null,
+      details: { message },
+      created_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn("Activity logging API unavailable", e);
+  }
 }
 
 export function subscribeActivity(onInsert: (a: Activity) => void) {

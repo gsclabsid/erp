@@ -237,7 +237,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     out.push(
       ...nav.slice(0, 6).map(i => ({ key: `nav:${i.path}` , label: i.label, sub: i.path, path: i.path, group: 'Pages' }))
     );
-    // Entities (supabase only)
+    // Entities (PostgreSQL API)
     const add = (arr: any[], group: string, toItem: (x:any)=>{label:string; sub?:string; path:string; key?:string}) => {
       for (const x of arr.slice(0, 5)) {
         const t = toItem(x);

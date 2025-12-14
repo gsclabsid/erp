@@ -1175,6 +1175,766 @@ app.post('/api/user-department-access', async (req, res) => {
   }
 });
 
+// User Preferences endpoints
+app.get('/api/user-preferences', async (req, res) => {
+  try {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    const result = await query(
+      'SELECT key, value FROM user_preferences WHERE user_id = $1',
+      [userId]
+    );
+    // Convert key-value pairs to object
+    const prefs: any = {};
+    result.rows.forEach((row: any) => {
+      try {
+        prefs[row.key] = JSON.parse(row.value);
+      } catch {
+        prefs[row.key] = row.value;
+      }
+    });
+    res.json(prefs);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/user-preferences', async (req, res) => {
+  try {
+    const { userId, preferences } = req.body;
+    if (!userId || !preferences) {
+      return res.status(400).json({ error: 'userId and preferences are required' });
+    }
+    // Upsert each preference
+    for (const [key, value] of Object.entries(preferences)) {
+      await query(
+        `INSERT INTO user_preferences (user_id, key, value, updated_at)
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+         ON CONFLICT (user_id, key) 
+         DO UPDATE SET value = $3, updated_at = CURRENT_TIMESTAMP`,
+        [userId, key, typeof value === 'string' ? value : JSON.stringify(value)]
+      );
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// User Settings endpoints
+app.get('/api/user-settings', async (req, res) => {
+  try {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    const result = await query(
+      'SELECT key, value FROM user_settings WHERE user_id = $1',
+      [userId]
+    );
+    const settings: any = {};
+    result.rows.forEach((row: any) => {
+      try {
+        settings[row.key] = JSON.parse(row.value);
+      } catch {
+        settings[row.key] = row.value;
+      }
+    });
+    res.json(settings);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/user-settings', async (req, res) => {
+  try {
+    const { userId, settings } = req.body;
+    if (!userId || !settings) {
+      return res.status(400).json({ error: 'userId and settings are required' });
+    }
+    for (const [key, value] of Object.entries(settings)) {
+      await query(
+        `INSERT INTO user_settings (user_id, key, value, updated_at)
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+         ON CONFLICT (user_id, key) 
+         DO UPDATE SET value = $3, updated_at = CURRENT_TIMESTAMP`,
+        [userId, key, typeof value === 'string' ? value : JSON.stringify(value)]
+      );
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// System Settings endpoints
+app.get('/api/system-settings', async (req, res) => {
+  try {
+    const result = await query('SELECT key, value, description FROM system_settings');
+    const settings: any = {};
+    result.rows.forEach((row: any) => {
+      try {
+        settings[row.key] = JSON.parse(row.value);
+      } catch {
+        settings[row.key] = row.value;
+      }
+    });
+    res.json(settings);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/system-settings', async (req, res) => {
+  try {
+    const { settings } = req.body;
+    if (!settings) {
+      return res.status(400).json({ error: 'settings are required' });
+    }
+    for (const [key, value] of Object.entries(settings)) {
+      await query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ($1, $2, CURRENT_TIMESTAMP)
+         ON CONFLICT (key) 
+         DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP`,
+        [key, typeof value === 'string' ? value : JSON.stringify(value)]
+      );
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reports endpoints
+app.get('/api/reports', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM reports ORDER BY created_at DESC');
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/reports', async (req, res) => {
+  try {
+    const report = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO reports (id, name, type, format, status, date_from, date_to, file_url, 
+        filter_session_id, filter_department, filter_property, filter_asset_type, 
+        created_by, created_by_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING *`,
+      [
+        report.id,
+        report.name,
+        report.type,
+        report.format || 'csv',
+        report.status || 'completed',
+        report.date_from || null,
+        report.date_to || null,
+        report.file_url || null,
+        report.filter_session_id || null,
+        report.filter_department || null,
+        report.filter_property || null,
+        report.filter_asset_type || null,
+        report.created_by || null,
+        report.created_by_id || null,
+        report.created_at || new Date().toISOString(),
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/reports', async (req, res) => {
+  try {
+    await query('DELETE FROM reports');
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Activity Log endpoints
+app.get('/api/activity', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const result = await query(
+      `SELECT al.*, u.name as user_name, u.email as user_email
+       FROM activity_log al
+       LEFT JOIN app_users u ON al.user_id = u.id
+       ORDER BY al.created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/activity', async (req, res) => {
+  try {
+    const activity = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO activity_log (user_id, action, entity_type, entity_id, details, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        activity.user_id || null,
+        activity.action,
+        activity.entity_type || null,
+        activity.entity_id || null,
+        activity.details ? JSON.stringify(activity.details) : null,
+        activity.created_at || new Date().toISOString(),
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Newsletter Posts endpoints
+app.get('/api/newsletter-posts', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const published = req.query.published;
+    let queryText = 'SELECT * FROM newsletter_posts';
+    const params: any[] = [];
+    if (published !== undefined) {
+      queryText += ' WHERE published = $1';
+      params.push(published === 'true');
+    }
+    queryText += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1);
+    params.push(limit);
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/newsletter-posts', async (req, res) => {
+  try {
+    const post = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO newsletter_posts (id, title, body, category, published, author, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        post.id,
+        post.title,
+        post.body,
+        post.category || 'release_notes',
+        post.published ?? true,
+        post.author || null,
+        post.created_at || new Date().toISOString(),
+        post.updated_at || null,
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/newsletter-posts/:id', async (req, res) => {
+  try {
+    const post = toSnakeCase(req.body);
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    for (const [key, value] of Object.entries(post)) {
+      if (key !== 'id' && value !== undefined) {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(req.params.id);
+    const result = await query(
+      `UPDATE newsletter_posts SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramCount} RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Newsletter post not found' });
+    }
+
+    res.json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/newsletter-posts/:id', async (req, res) => {
+  try {
+    const result = await query('DELETE FROM newsletter_posts WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Newsletter post not found' });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Ticket Comments endpoints (using existing ticket_comments table)
+app.get('/api/ticket-comments', async (req, res) => {
+  try {
+    const ticketId = req.query.ticketId as string;
+    if (!ticketId) {
+      return res.status(400).json({ error: 'ticketId is required' });
+    }
+    const result = await query(
+      'SELECT * FROM ticket_comments WHERE ticket_id = $1 ORDER BY created_at ASC',
+      [ticketId]
+    );
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/ticket-comments', async (req, res) => {
+  try {
+    const comment = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO ticket_comments (ticket_id, user_id, user_name, comment, created_at)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        comment.ticket_id,
+        comment.user_id || null,
+        comment.user_name || null,
+        comment.comment,
+        comment.created_at || new Date().toISOString(),
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Ticket Attachments endpoints
+app.get('/api/ticket-attachments', async (req, res) => {
+  try {
+    const ticketId = req.query.ticketId as string;
+    if (!ticketId) {
+      return res.status(400).json({ error: 'ticketId is required' });
+    }
+    const result = await query(
+      'SELECT * FROM ticket_attachments WHERE ticket_id = $1 ORDER BY uploaded_at DESC',
+      [ticketId]
+    );
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/ticket-attachments', async (req, res) => {
+  try {
+    const attachment = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO ticket_attachments (id, ticket_id, name, url, uploaded_at, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        attachment.id,
+        attachment.ticket_id,
+        attachment.name,
+        attachment.url,
+        attachment.uploaded_at || new Date().toISOString(),
+        attachment.uploaded_by || null,
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/ticket-attachments/:id', async (req, res) => {
+  try {
+    const result = await query('DELETE FROM ticket_attachments WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Audit Sessions endpoints
+app.get('/api/audit-sessions', async (req, res) => {
+  try {
+    const isActive = req.query.isActive;
+    let queryText = 'SELECT * FROM audit_sessions';
+    const params: any[] = [];
+    if (isActive !== undefined) {
+      queryText += ' WHERE is_active = $1';
+      params.push(isActive === 'true');
+    }
+    queryText += ' ORDER BY started_at DESC';
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/audit-sessions/:id', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM audit_sessions WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Audit session not found' });
+    }
+    res.json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/audit-sessions', async (req, res) => {
+  try {
+    const session = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO audit_sessions (id, started_at, frequency_months, initiated_by, is_active, property_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        session.id,
+        session.started_at || new Date().toISOString(),
+        session.frequency_months || 1,
+        session.initiated_by || null,
+        session.is_active ?? true,
+        session.property_id || null,
+        session.created_at || new Date().toISOString(),
+        session.updated_at || new Date().toISOString(),
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/audit-sessions/:id', async (req, res) => {
+  try {
+    const session = toSnakeCase(req.body);
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    for (const [key, value] of Object.entries(session)) {
+      if (key !== 'id' && value !== undefined) {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(req.params.id);
+    const result = await query(
+      `UPDATE audit_sessions SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramCount} RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Audit session not found' });
+    }
+
+    res.json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Audit Assignments endpoints
+app.get('/api/audit-assignments', async (req, res) => {
+  try {
+    const sessionId = req.query.sessionId as string;
+    let queryText = 'SELECT * FROM audit_assignments';
+    const params: any[] = [];
+    if (sessionId) {
+      queryText += ' WHERE session_id = $1';
+      params.push(sessionId);
+    }
+    queryText += ' ORDER BY created_at DESC';
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/audit-assignments', async (req, res) => {
+  try {
+    const assignment = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO audit_assignments (session_id, department, status, submitted_at, submitted_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (session_id, department)
+       DO UPDATE SET status = $3, submitted_at = $4, submitted_by = $5, updated_at = $7
+       RETURNING *`,
+      [
+        assignment.session_id,
+        assignment.department,
+        assignment.status || 'pending',
+        assignment.submitted_at || null,
+        assignment.submitted_by || null,
+        assignment.created_at || new Date().toISOString(),
+        assignment.updated_at || new Date().toISOString(),
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Audit Reviews endpoints
+app.get('/api/audit-reviews', async (req, res) => {
+  try {
+    const sessionId = req.query.sessionId as string;
+    const department = req.query.department as string;
+    let queryText = 'SELECT * FROM audit_reviews WHERE 1=1';
+    const params: any[] = [];
+    let paramCount = 1;
+
+    if (sessionId) {
+      queryText += ` AND session_id = $${paramCount}`;
+      params.push(sessionId);
+      paramCount++;
+    }
+    if (department) {
+      queryText += ` AND department = $${paramCount}`;
+      params.push(department);
+      paramCount++;
+    }
+
+    queryText += ' ORDER BY updated_at DESC';
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/audit-reviews', async (req, res) => {
+  try {
+    const reviews = Array.isArray(req.body) ? req.body : [req.body];
+    const results: any[] = [];
+
+    for (const review of reviews) {
+      const r = toSnakeCase(review);
+      const result = await query(
+        `INSERT INTO audit_reviews (session_id, asset_id, department, status, comment, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (session_id, asset_id, department)
+         DO UPDATE SET status = $4, comment = $5, updated_at = $7
+         RETURNING *`,
+        [
+          r.session_id,
+          r.asset_id,
+          r.department,
+          r.status || 'verified',
+          r.comment || null,
+          r.created_at || new Date().toISOString(),
+          r.updated_at || new Date().toISOString(),
+        ]
+      );
+      results.push(result.rows[0]);
+    }
+
+    res.status(201).json(toCamelCase(results));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Audit Reports endpoints
+app.get('/api/audit-reports', async (req, res) => {
+  try {
+    const sessionId = req.query.sessionId as string;
+    let queryText = 'SELECT * FROM audit_reports';
+    const params: any[] = [];
+    if (sessionId) {
+      queryText += ' WHERE session_id = $1';
+      params.push(sessionId);
+    }
+    queryText += ' ORDER BY generated_at DESC';
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/audit-reports/:id', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM audit_reports WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Audit report not found' });
+    }
+    res.json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/audit-reports', async (req, res) => {
+  try {
+    const report = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO audit_reports (id, session_id, generated_at, generated_by, summary, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        report.id,
+        report.session_id,
+        report.generated_at || new Date().toISOString(),
+        report.generated_by || null,
+        report.summary ? JSON.stringify(report.summary) : null,
+        report.created_at || new Date().toISOString(),
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Audit Scans endpoints
+app.get('/api/audit-scans', async (req, res) => {
+  try {
+    const sessionId = req.query.sessionId as string;
+    let queryText = 'SELECT * FROM audit_scans';
+    const params: any[] = [];
+    if (sessionId) {
+      queryText += ' WHERE session_id = $1';
+      params.push(sessionId);
+    }
+    queryText += ' ORDER BY scanned_at DESC';
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/audit-scans', async (req, res) => {
+  try {
+    const scan = toSnakeCase(req.body);
+    const result = await query(
+      `INSERT INTO audit_scans (session_id, asset_id, scanned_at, scanned_by, status)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        scan.session_id,
+        scan.asset_id,
+        scan.scanned_at || new Date().toISOString(),
+        scan.scanned_by || null,
+        scan.status || 'scanned',
+      ]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Final Approvers endpoints
+app.get('/api/final-approvers', async (req, res) => {
+  try {
+    const propertyId = req.query.propertyId as string;
+    const userId = req.query.userId as string;
+    let queryText = 'SELECT * FROM final_approvers WHERE 1=1';
+    const params: any[] = [];
+    let paramCount = 1;
+
+    if (propertyId) {
+      queryText += ` AND property_id = $${paramCount}`;
+      params.push(propertyId);
+      paramCount++;
+    }
+    if (userId) {
+      queryText += ` AND user_id = $${paramCount}`;
+      params.push(userId);
+      paramCount++;
+    }
+
+    const result = await query(queryText, params);
+    res.json(toCamelCase(result.rows));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/final-approvers', async (req, res) => {
+  try {
+    const { propertyId, userId, userName } = req.body;
+    if (!propertyId || !userId) {
+      return res.status(400).json({ error: 'propertyId and userId are required' });
+    }
+    const result = await query(
+      `INSERT INTO final_approvers (property_id, user_id, user_name, created_at, updated_at)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT (property_id)
+       DO UPDATE SET user_id = $2, user_name = $3, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [propertyId, userId, userName || null]
+    );
+    res.status(201).json(toCamelCase(result.rows[0]));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/final-approvers', async (req, res) => {
+  try {
+    const propertyId = req.query.propertyId as string;
+    const userId = req.query.userId as string;
+    if (!propertyId && !userId) {
+      return res.status(400).json({ error: 'propertyId or userId is required' });
+    }
+    let queryText = 'DELETE FROM final_approvers WHERE 1=1';
+    const params: any[] = [];
+    if (propertyId) {
+      queryText += ' AND property_id = $1';
+      params.push(propertyId);
+    }
+    if (userId) {
+      queryText += propertyId ? ' AND user_id = $2' : ' AND user_id = $1';
+      params.push(userId);
+    }
+    queryText += ' RETURNING id';
+    const result = await query(queryText, params);
+    res.json({ success: true, deleted: result.rows.length });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);

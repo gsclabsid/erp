@@ -189,11 +189,11 @@ export default function Assets() {
   useEffect(() => {
     if (bulkProperty && !bulkPropertyOptions.includes(bulkProperty)) setBulkProperty('');
   }, [bulkPropertyOptions]);
-  // Load final-approver property ids for current user (Supabase-auth when configured)
+  // Load final-approver property ids for current user (PostgreSQL API)
   useEffect(() => {
     (async () => {
       try {
-        if (!false) { setApproverPropIds(new Set()); return; }
+        if (isDemoMode()) { setApproverPropIds(new Set()); return; }
         let uid = localStorage.getItem('current_user_id') || '';
         if (!uid) {
           try {
@@ -311,7 +311,7 @@ export default function Assets() {
     } catch {}
   }, []);
 
-  // Load allowed departments for current user (Supabase-backed mapping)
+  // Load allowed departments for current user (PostgreSQL API)
   useEffect(() => {
     (async () => {
       try {

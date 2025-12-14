@@ -471,42 +471,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     })();
   }, [location.pathname, loadPendingApprovals]);
 
-  useEffect(() => {
-    if (!false) return;
-    const roleValue = (role || "").toLowerCase();
-    if (roleValue !== "admin" && roleValue !== "manager") return;
-    const deptLower = (userDept || "").toLowerCase();
-    if (roleValue === "manager" && !deptLower) return;
-
-    const channel = supabase
-      .channel(`approvals_sidebar_${roleValue}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "approvals" }, (payload) => {
-        const relevant = (record: any) => {
-          if (!record) return false;
-          const status = String(record.status || "").toLowerCase();
-          if (roleValue === "admin") {
-            return status === "pending_admin";
-          }
-          if (roleValue === "manager") {
-            const recDept = String(record.department || "").toLowerCase();
-            return status === "pending_manager" && recDept === deptLower;
-          }
-          return false;
-        };
-        const before = relevant(payload?.old);
-        const after = relevant(payload?.new);
-        if (before === after) return;
-        if (!before && after) {
-          try { playNotificationSound(); } catch {}
-        }
-        loadPendingApprovals({ force: true });
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [role, userDept, loadPendingApprovals]);
+  // Real-time updates removed - using PostgreSQL API instead of Supabase
+  // Approvals will refresh when the page is reloaded or when manually refreshed
 
   
   // Load ticket badges: red = new open for my role; yellow = assigned to me and in progress/resolved

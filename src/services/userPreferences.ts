@@ -1,4 +1,5 @@
 import { isDemoMode } from "@/lib/demo";
+import { api } from "@/lib/api";
 
 export type UserPreferences = {
   user_id: string;
@@ -85,29 +86,60 @@ function defaults(userId: string): UserPreferences {
 }
 
 export async function getUserPreferences(userId: string): Promise<UserPreferences> {
-  // User preferences API not yet implemented - use localStorage
-  const aliasIds = collectAliasIds(userId, null);
-  const candidates = [userId, ...aliasIds];
-  let localRaw: UserPreferences | null = null;
-  for (const candidate of candidates) {
-    localRaw = loadLocal(candidate);
-    if (localRaw) break;
+  if (isDemoMode()) {
+    const aliasIds = collectAliasIds(userId, null);
+    const candidates = [userId, ...aliasIds];
+    let localRaw: UserPreferences | null = null;
+    for (const candidate of candidates) {
+      localRaw = loadLocal(candidate);
+      if (localRaw) break;
+    }
+    if (!localRaw) {
+      const baseId = (candidates.find((id) => typeof id === 'string') as string | undefined) || userId || 'local';
+      localRaw = defaults(baseId);
+    }
+    const local = applyPostLoadDefaults({ ...localRaw });
+    cachePreferences(local, candidates);
+    return local;
   }
-  if (!localRaw) {
-    const baseId = (candidates.find((id) => typeof id === 'string') as string | undefined) || userId || 'local';
-    localRaw = defaults(baseId);
+  
+  try {
+    const prefs = await api.get<Record<string, any>>(`/user-preferences?userId=${userId}`);
+    const merged: UserPreferences = {
+      user_id: userId,
+      ...defaults(userId),
+      ...prefs,
+    };
+    const local = applyPostLoadDefaults(merged);
+    cachePreferences(local, [userId]);
+    return local;
+  } catch (e) {
+    console.warn("User preferences API unavailable, using localStorage", e);
+    const localRaw = loadLocal(userId) || defaults(userId);
+    const local = applyPostLoadDefaults({ ...localRaw });
+    return local;
   }
-  const local = applyPostLoadDefaults({ ...localRaw });
-  cachePreferences(local, candidates);
-  return local;
 }
 
 export async function upsertUserPreferences(userId: string, patch: Partial<UserPreferences>): Promise<UserPreferences> {
-  // User preferences API not yet implemented - use localStorage
-  const cur = loadLocal(userId) || defaults(userId);
-  const next: UserPreferences = { ...cur, ...patch };
-  saveLocal(next);
-  return next;
+  if (isDemoMode()) {
+    const cur = loadLocal(userId) || defaults(userId);
+    const next: UserPreferences = { ...cur, ...patch };
+    saveLocal(next);
+    return next;
+  }
+  
+  try {
+    await api.post('/user-preferences', { userId, preferences: patch });
+    const updated = await getUserPreferences(userId);
+    return updated;
+  } catch (e) {
+    console.warn("User preferences API unavailable, using localStorage", e);
+    const cur = loadLocal(userId) || defaults(userId);
+    const next: UserPreferences = { ...cur, ...patch };
+    saveLocal(next);
+    return next;
+  }
 }
 
 export function peekCachedUserPreferences(userId?: string | null): UserPreferences | null {

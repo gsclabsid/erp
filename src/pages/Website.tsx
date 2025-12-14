@@ -41,7 +41,7 @@ export default function Website() {
         <meta name="description" content={HeroDescription} />
         <meta
           name="keywords"
-          content="asset management software, qr code asset tracking, supabase asset system, equipment tracking, facilities management, audit-ready reporting, open source asset platform"
+          content="asset management software, qr code asset tracking, postgresql asset system, equipment tracking, facilities management, audit-ready reporting, open source asset platform"
         />
         <meta name="author" content="Karthik Lal" />
         <link rel="canonical" href={BaseUrl} />

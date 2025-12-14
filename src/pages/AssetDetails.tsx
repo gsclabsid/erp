@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 export default function AssetDetails() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
-  const isSupabase = false;
+  const isSupabase = true; // Use PostgreSQL API
   const [asset, setAsset] = useState<Asset | null>(null);
   const [propsById, setPropsById] = useState<Record<string, Property>>({});
   const qrPayload = useMemo(() => {
@@ -24,7 +24,7 @@ export default function AssetDetails() {
     (async () => {
       try {
         // Load properties for label rendering
-        if (isSupabase) {
+        if (!isDemoMode()) {
           const props = await listProperties();
           setPropsById(Object.fromEntries(props.map(p => [p.id, p])));
         }
@@ -36,11 +36,11 @@ export default function AssetDetails() {
     (async () => {
       if (!id) return;
       try {
-        if (isSupabase) {
+        if (!isDemoMode()) {
           const data = await getAssetById(id);
           setAsset(data);
         } else {
-          // As a fallback (no Supabase), use data from QR payload when present
+          // As a fallback (demo mode), use data from QR payload when present
           if (qrPayload) {
             setAsset({
               id: qrPayload.assetId,

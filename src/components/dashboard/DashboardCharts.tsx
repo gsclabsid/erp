@@ -76,7 +76,7 @@ export function DashboardCharts() {
       setProperties(getDemoProperties());
       return;
     }
-    if (!false) return;
+    if (isDemoMode()) return;
     (async () => {
       try {
         const [a, p] = await Promise.all([

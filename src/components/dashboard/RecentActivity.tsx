@@ -27,7 +27,7 @@ export function RecentActivity() {
           console.error(e);
           setItems(mockActivities as any);
         }
-      } else if (false) {
+      } else if (!isDemoMode()) {
         try {
           // fetch a bigger window, then filter to today client-side
           const data = await listActivity(100);

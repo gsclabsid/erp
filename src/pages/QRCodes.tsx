@@ -322,9 +322,8 @@ export default function QRCodes() {
 
   const handleClearAll = async () => {
     if (role !== 'admin') return;
-    const supabaseReady = isDemoMode() || false;
-    if (!supabaseReady) {
-      toast.warning('Supabase connection is not configured, nothing to clear.');
+    if (isDemoMode()) {
+      toast.warning('Cannot clear QR codes in demo mode.');
       return;
     }
     const ok = window.confirm("This will permanently delete every stored QR code. Continue?");
@@ -1121,7 +1120,7 @@ export default function QRCodes() {
                         if (!dataUrl) throw new Error('No image');
                         // Print one per A4 page
                         await printImagesOnA4Grid([dataUrl]);
-                        if (false) { await updateQRCode(qrCode.id, { printed: true } as any); }
+                        if (!isDemoMode()) { await updateQRCode(qrCode.id, { printed: true } as any); }
                         setCodes(prev => prev.map(c => c.id === qrCode.id ? { ...c, printed: true } : c));
                         toast.success(`Opened print for ${qrCode.assetName}`);
                         await logActivity('qr_printed', `Printed QR for ${qrCode.assetName} (${qrCode.assetId})`);
@@ -1192,21 +1191,7 @@ export default function QRCodes() {
           </div>
         )}
 
-        {!false && (
-          <Card className="border-warning/50 bg-warning/5">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <QrCode className="h-6 w-6 text-warning shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-foreground">QR Code Management Features</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Connect Supabase to persist generated QR codes and enable bulk operations.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* QR codes are now persisted in PostgreSQL database */}
 
         {/* QR Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

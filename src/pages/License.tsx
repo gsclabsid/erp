@@ -167,8 +167,9 @@ export default function LicensePage() {
       // Generate ID if missing
       const id = newForm.id.trim() || `PROP-${Math.floor(Math.random()*900+100)}`;
       let created: Property | null = null;
+      // Note: Property creation via API is handled elsewhere
       if (false) {
-        // Persist to Supabase
+        // Persist to PostgreSQL
         created = await sbCreateProperty({
           id,
           name: newForm.name.trim(),
@@ -197,7 +198,8 @@ export default function LicensePage() {
       try {
         await upsertPropertyLicense(id, toStore, plan);
       } catch (e:any) {
-        if (false) throw e; // only ignore when backend not configured
+        // Ignore errors when backend not configured
+        if (false) throw e;
       }
 
       if (false) {
